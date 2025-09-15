@@ -30,7 +30,7 @@ if __name__ == "__main__":
             print(i, len(c))
             f.write(f">contig_{i}\n")
             f.write(c + "\n")
-    print(f"WROTE: {out_fa}")
+    print(f"WROTE: {output_file_path}")
 
 
 # from dbg_type import DBG
@@ -72,6 +72,7 @@ if __name__ == "__main__":
 #     print(f"WROTE: {out_fa}")
 
     
+
 
 
 
