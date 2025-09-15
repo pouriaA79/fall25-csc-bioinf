@@ -76,17 +76,15 @@
 
 
 
-
-# week1/codes/codon/main_type.py
-
 from dbg_type import DBG
-from python import os, sys  # از پل پایتون فقط os/sys را می‌گیریم؛ __file__ استفاده نمی‌کنیم
+from python import os, sys, traceback
 
+# ---------- path utils ----------
 def resolve_data_path(arg: str) -> str:
     """
-    اگر arg مسیر موجود باشد همان را برمی‌گرداند.
-    اگر فقط نام دیتاست باشد (مثلاً data1)، مسیر cwd/data/arg را می‌سازد.
-    (در CI، cwd = week1 است، پس week1/data/data1 ساخته می‌شود.)
+    اگر arg دایرکتوری باشد همان را برمی‌گرداند.
+    اگر فقط نام دیتاست باشد (مثل data1)، مسیر cwd/data/arg را می‌سازد.
+    (در CI، cwd = week1 است)
     """
     p = os.path.abspath(arg)
     if os.path.isdir(p):
@@ -94,66 +92,72 @@ def resolve_data_path(arg: str) -> str:
     base = os.getcwd()
     return os.path.abspath(os.path.join(base, "data", arg))
 
-def read_fasta(fp: str):
-    """ساده و مطمئن: کل FASTA را به لیست توالی‌ها تبدیل می‌کند."""
+# ---------- FASTA I/O (ساده و سازگار با Codon) ----------
+def read_fasta_file(path: str):
     seqs = []
-    cur = []
-    f = open(fp, "r")
-    for line in f:
-        line = line.strip()
-        if not line:
-            continue
-        if line.startswith(">"):
-            if cur:
-                seqs.append("".join(cur))
-                cur = []
-        else:
-            cur.append(line)
-    if cur:
-        seqs.append("".join(cur))
-    f.close()
+    buf = []
+    with open(path, "r") as fh:
+        for raw in fh:
+            if not raw:
+                continue
+            if raw[0] == ">":
+                if buf:
+                    seqs.append("".join(buf))
+                    buf = []
+            else:
+                buf.append(raw.strip())
+        if buf:
+            seqs.append("".join(buf))
     return seqs
 
+def read_data_local(dp: str):
+    s1p = os.path.join(dp, "short_1.fasta")
+    s2p = os.path.join(dp, "short_2.fasta")
+    lp  = os.path.join(dp, "long.fasta")
+
+    # وجود فایل‌ها را چک کنیم تا اگر نبود، پیام واضح بدهیم
+    for p in (s1p, s2p, lp):
+        if not os.path.isfile(p):
+            raise FileNotFoundError(f"missing file: {p}")
+
+    s1 = read_fasta_file(s1p)
+    s2 = read_fasta_file(s2p)
+    l1 = read_fasta_file(lp)
+
+    def lensafe(v): return len(v[0]) if v else 0
+    print(f"short_1.fasta {len(s1)} {lensafe(s1)}")
+    print(f"short_2.fasta {len(s2)} {lensafe(s2)}")
+    print(f"long.fasta {len(l1)} {lensafe(l1)}")
+    return s1, s2, l1
+
+# ---------- main ----------
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("usage: codon run -plugin seq main_type.py <dataset-path | dataset-name>")
-        sys.exit(1)
+    try:
+        if len(sys.argv) < 2:
+            print("usage: codon run -plugin seq main_type.py <dataset-path | dataset-name>")
+            sys.exit(1)
 
-    data_path = resolve_data_path(sys.argv[1])
-    print(f"[CODON] cwd={os.getcwd()}  arg={sys.argv[1]}  data_path={data_path}")
+        data_path = resolve_data_path(sys.argv[1])
+        print(f"[CODON] data_path = {data_path}")
 
-    # فایل‌ها را مستقیم بخوان (بدون utils_type)
-    s1 = read_fasta(os.path.join(data_path, "short_1.fasta"))
-    s2 = read_fasta(os.path.join(data_path, "short_2.fasta"))
-    l1 = read_fasta(os.path.join(data_path, "long.fasta"))
+        short1, short2, long1 = read_data_local(data_path)
 
-    # پیام‌های سازگار با لاگ Python برای دیباگ و evaluate.sh
-    print(f"short_1.fasta {len(s1)} {len(s1[0]) if s1 else 0}")
-    print(f"short_2.fasta {len(s2)} {len(s2[0]) if s2 else 0}")
-    print(f"long.fasta {len(l1)} {len(l1[0]) if l1 else 0}")
+        k = 25
+        dbg = DBG(k=k, data_list=[short1, short2, long1])
 
-    k = 25
-    dbg = DBG(k=k, data_list=[s1, s2, l1])
+        out_fa = os.path.join(data_path, "contigs.fasta")
+        with open(out_fa, "w") as f:
+            for i in range(20):
+                c = dbg.get_longest_contig()
+                if c is None:
+                    break
+                print(i, len(c))
+                f.write(f">contig_{i}\n{c}\n")
 
-    out_fa = os.path.join(data_path, "contigs.fasta")
-    f = open(out_fa, "w")
-    for i in range(20):
-        c = dbg.get_longest_contig()
-        if c is None:
-            break
-        print(i, len(c))
-        f.write(f">contig_{i}\n{c}\n")
-    f.close()
+        print(f"WROTE: {out_fa}")
 
-    print(f"WROTE: {out_fa}")
-
-
-
-
-
-
-
-
-
-
-
+    except BaseException as e:
+        # traceback کامل تا در CI بفهمیم دقیقاً کجا گیر کرده
+        print("[CODON] ERROR:", repr(e))
+        traceback.print_exc()
+        sys.exit(2)
