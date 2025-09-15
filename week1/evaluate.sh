@@ -2,8 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-WEEK1_DIR="$REPO_ROOT/week1"
+WEEK1_DIR="$(cd "$SCRIPT_DIR" && pwd)"
 CODE_DIR="$WEEK1_DIR/codes"
 DATA_DIR="$WEEK1_DIR/data"
 LOG_DIR="$WEEK1_DIR/ci_logs"
@@ -40,7 +39,7 @@ n50_of_fasta () {
 
 discover_datasets(){ for ds in data1 data2 data3; do [[ -d "$DATA_DIR/$ds" ]] && echo "$DATA_DIR/$ds"; done; }
 
-find_contigs_in_ds(){ # فقط داخل فولدر دیتاست
+find_contigs_in_ds(){  # فقط داخل فولدر دیتاست
   local d="$1"
   if   [[ -s "$d/contigs.fasta"       ]]; then echo "$d/contigs.fasta"
   elif [[ -s "$d/contig_python.fasta" ]]; then echo "$d/contig_python.fasta"
@@ -58,14 +57,12 @@ printf -- "-------------------------------------------------------------------\n
 
 for ds in "${datasets[@]}"; do
   name="$(basename "$ds")"
-  # پاک‌سازی خروجی‌های قدیمی
-  rm -f "$ds/contigs.fasta" "$ds/merged_contigs.fasta" "$ds"/contig_*.fasta || true
 
   # -------- Python --------
   py_rt=0; py_log="$LOG_DIR/py_${name}.log"
   if [[ -f "$PY_ENTRY" ]] && run_and_time_logged py_rt "$py_log" -- python3 -u "$PY_ENTRY" "$ds"; then
-    py_fa_log="$(grep -m1 '^WROTE:' "$py_log" | awk '{print $2}')"
-    py_fa="${py_fa_log:-$(find_contigs_in_ds "$ds")}"
+    py_fa="$(grep -m1 '^WROTE:' "$py_log" | awk '{print $2}')"
+    [[ -z "${py_fa:-}" ]] && py_fa="$(find_contigs_in_ds "$ds")"
     echo "PY found: ${py_fa:-<none>}"
     py_n50="$(n50_of_fasta "$py_fa")"
     printf "%-8s\t%-8s\t%-8s\t%-6s\n" "$name" "python" "$(fmt_duration "$py_rt")" "$py_n50"
@@ -78,12 +75,12 @@ for ds in "${datasets[@]}"; do
   # -------- Codon --------
   codon_rt=0; codon_log="$LOG_DIR/codon_${name}.log"
   if [[ -f "$CODON_ENTRY" ]] && run_and_time_logged codon_rt "$codon_log" -- "$CODON_BIN" run -release -plugin seq "$CODON_ENTRY" "$ds"; then
-    co_fa_log="$(grep -m1 '^WROTE:' "$codon_log" | awk '{print $2}')"
-    co_fa="${co_fa_log:-$(find_contigs_in_ds "$ds")}"
+    co_fa="$(grep -m1 '^WROTE:' "$codon_log" | awk '{print $2}')"
+    [[ -z "${co_fa:-}" ]] && co_fa="$(find_contigs_in_ds "$ds")"
     echo "CODON found: ${co_fa:-<none>}"
     co_n50="$(n50_of_fasta "$co_fa")"
     printf "%-8s\t%-8s\t%-8s\t%-6s\n" "$name" "codon" "$(fmt_duration "$codon_rt")" "$co_n50"
-    echo "$name,codon,$codon_rt,$(fmt_duration "$codon_rt"),$co_n50" >> "$RESULTS_CSV"
+    echo "$name,python,$codon_rt,$(fmt_duration "$codon_rt"),$co_n50" >> "$RESULTS_CSV"
   else
     echo "Codon FAILED on $name (see $codon_log)"
     echo "$name,codon,0,0:00:00,NA" >> "$RESULTS_CSV"
