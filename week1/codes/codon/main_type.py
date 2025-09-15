@@ -43,7 +43,7 @@ def resolve_data_path(arg: str):
     if os.path.isdir(p):
         return p, os.path.basename(p)
     here = os.path.dirname(__file__)
-    p2 = os.path.abspath(os.path.join(here, "..", "data", arg))
+    p2 = os.path.abspath(os.path.join(here, "..","..", "data", arg))
     return p2, arg
 
 if __name__ == "__main__":
@@ -68,3 +68,4 @@ if __name__ == "__main__":
                 break
             print(i, len(c))
             f.write(f">contig_{i}\n{c}\n")
+
