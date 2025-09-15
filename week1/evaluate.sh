@@ -81,7 +81,7 @@ PY
 
 # دیتاست‌ها: data1..data3
 datasets=()
-for ds in data1 data2 data3 data4; do
+for ds in data1 data2 data3; do
   [[ -d "$DATA_DIR/$ds" ]] && datasets+=("$DATA_DIR/$ds")
 done
 [[ ${#datasets[@]} -gt 0 ]] || { echo "No datasets under $DATA_DIR"; exit 1; }
