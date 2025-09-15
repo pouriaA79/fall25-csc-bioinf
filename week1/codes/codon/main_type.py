@@ -42,8 +42,9 @@ def resolve_data_path(arg: str):
     p = os.path.abspath(arg)
     if os.path.isdir(p):
         return p, os.path.basename(p)
-    here = os.path.dirname(__file__)
-    p2 = os.path.abspath(os.path.join(here, "..","..", "data", arg))
+    base = os.getcwd()
+
+    p2 = os.path.abspath(os.path.join(base,"data", arg))
     return p2, arg
 
 if __name__ == "__main__":
@@ -71,6 +72,7 @@ if __name__ == "__main__":
     print(f"WROTE: {out_fa}")
 
     
+
 
 
 
