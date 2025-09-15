@@ -9,7 +9,7 @@ sys.setrecursionlimit(100000)
 if __name__ == "__main__":
     import sys
     argv = sys.argv
-    data_path = f"../../data/{argv[1]}"
+    data_path = f"data/{argv[1]}"
     print(data_path)
     # data_path = os.path.abspath(data_path)
     short1, short2, long1 = read_data(data_path)
@@ -162,4 +162,5 @@ if __name__ == "__main__":
 #         print("[CODON] ERROR:", repr(e))
 #         traceback.print_exc()
 #         sys.exit(2)
+
 
