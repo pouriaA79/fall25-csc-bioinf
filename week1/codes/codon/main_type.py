@@ -60,7 +60,7 @@ if __name__ == "__main__":
     out_dir = data_path                      # ← داخل پوشه دیتاست
     os.makedirs(out_dir, exist_ok=True)
     out_fa = os.path.join(out_dir, "contigs.fasta")
-
+    print(f"WROTE: {out_fa}")
     with open(out_fa, "w") as f:
         for i in range(20):
             c = dbg.get_longest_contig()
@@ -68,4 +68,7 @@ if __name__ == "__main__":
                 break
             print(i, len(c))
             f.write(f">contig_{i}\n{c}\n")
+    
+
+
 
