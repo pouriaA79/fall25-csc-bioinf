@@ -68,8 +68,9 @@ if __name__ == "__main__":
                 break
             print(i, len(c))
             f.write(f">contig_{i}\n{c}\n")
-    print(f"WROTE: {out_fa}")
+
     
+
 
 
 
