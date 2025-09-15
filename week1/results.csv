@@ -1,7 +1,0 @@
-dataset,language,runtime_sec,runtime_hms,n50
-data1,python,33,0:00:33,9990
-data1,codon,4,0:00:04,9990
-data2,python,74,0:01:14,9992
-data2,codon,4,0:00:04,9992
-data3,python,69,0:01:09,9824
-data3,codon,3,0:00:03,9824
