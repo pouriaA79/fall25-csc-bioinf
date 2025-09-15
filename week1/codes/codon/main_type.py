@@ -38,7 +38,7 @@ from utils_type import read_data
 from python import os, sys  # در Codon بهتره os/sys را از bridge بیاریم
 
 # اختیاری: روی Codon اثر خاصی نداره
-# sys.setrecursionlimit(100000)
+sys.setrecursionlimit(100000)
 
 def resolve_data_path(arg: str) -> str:
     """
@@ -46,10 +46,10 @@ def resolve_data_path(arg: str) -> str:
     اگر فقط نام دیتاست باشد (data1, data2, ...)، آن را زیر cwd/data می‌سازد.
     """
     p = os.path.abspath(arg)
-    if os.path.isdir(p):
-        return p
-    base = os.getcwd()  # در CI == week1
-    return os.path.abspath(os.path.join(base, "data", arg))
+    # if os.path.isdir(p):
+    return p
+    # base = os.getcwd()  # در CI == week1
+    # return os.path.abspath(os.path.join(base, "data", arg))
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
@@ -73,6 +73,7 @@ if __name__ == "__main__":
 
     # برای evaluate.sh
     print(f"WROTE: {out_fa}")
+
 
 
 
