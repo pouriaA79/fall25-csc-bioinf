@@ -14,7 +14,7 @@ jobs:
           CODON_HOME="${HOME}/.codon"
           mkdir -p "${CODON_HOME}/lib/codon/plugins"
 
-          # URL ها (پین شده)
+          
           CODON_URL="https://github.com/exaloop/codon/releases/download/v0.19.3/codon-linux-x86_64.tar.gz"
           SEQ_URL="https://github.com/exaloop/seq/releases/download/v0.11.5/seq-linux-x86_64.tar.gz"
 
