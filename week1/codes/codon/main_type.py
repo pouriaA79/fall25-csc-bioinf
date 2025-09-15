@@ -32,10 +32,10 @@
 #             f.write(c + "\n")
 
 
-import os
 from dbg_type import DBG
 from utils_type import read_data
 from python import sys
+from python import os
 sys.setrecursionlimit(100000)
 
 def resolve_data_path(arg: str):
@@ -71,6 +71,7 @@ if __name__ == "__main__":
     print(f"WROTE: {out_fa}")
 
     
+
 
 
 
