@@ -11,7 +11,6 @@ jobs:
       - name: Install Codon + seq plugin
         run: |
           set -euxo pipefail
-          # مسیر نصب
           CODON_HOME="${HOME}/.codon"
           mkdir -p "${CODON_HOME}/lib/codon/plugins"
 
