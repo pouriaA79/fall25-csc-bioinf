@@ -1,7 +1,7 @@
 from dbg_type import DBG
 from utils_type import read_data
 from python import sys
-import os
+from python import os
 
 sys.setrecursionlimit(100000)
 
@@ -10,6 +10,7 @@ if __name__ == "__main__":
     import sys
     argv = sys.argv
     data_path = f"../../data/{argv[1]}"
+    data_path = os.path.abspath(data_path)
     short1, short2, long1 = read_data(data_path)
 
     k = 25
@@ -72,6 +73,7 @@ if __name__ == "__main__":
 #     print(f"WROTE: {out_fa}")
 
     
+
 
 
 
