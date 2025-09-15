@@ -59,6 +59,13 @@ jobs:
           CODON_ARGS_DEFAULT: "batch 25 100 0 1 3000 0 0 200000"
           # اگر خواستی دیتاستی را حذف کنی (evaluate.sh فعلاً خودش فقط data1..3 را می‌خواند)
           # EXCLUDE_DATASETS: "data4"
+      
+      - name: Upload evaluator logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-logs
+          path: week1/ci_logs/*.log
+          if-no-files-found: ignore
 
       - name: Upload results.csv
         uses: actions/upload-artifact@v4
