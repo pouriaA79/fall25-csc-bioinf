@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-WEEK1_DIR="$(cd "$SCRIPT_DIR" && pwd)"
+WEEK1_DIR="$SCRIPT_DIR"
 CODE_DIR="$WEEK1_DIR/codes"
 DATA_DIR="$WEEK1_DIR/data"
 LOG_DIR="$WEEK1_DIR/ci_logs"
@@ -18,6 +18,7 @@ echo "dataset,language,runtime_sec,runtime_hms,n50" > "$RESULTS_CSV"
 fmt_duration(){ s="$1"; printf "%d:%02d:%02d" $((s/3600)) $(((s%3600)/60)) $((s%60)); }
 
 run_and_time_logged () {
+  # usage: run_and_time_logged <outvar_seconds> <logfile> -- <cmd> <args...>
   local __out="$1"; shift
   local log="$1"; shift
   [[ "${1:-}" == "--" ]] && shift || true
@@ -29,6 +30,7 @@ run_and_time_logged () {
 
 n50_of_fasta () {
   local fa="$1"; [[ -s "$fa" ]] || { echo NA; return; }
+  # طول همه‌ی خطوط توالی بین هدرها جمع می‌شود
   local lengths total
   lengths="$(awk 'BEGIN{l=0}/^>/{if(l>0)print l;l=0;next}{l+=length($0)}END{if(l>0)print l}' "$fa")"
   [[ -n "$lengths" ]] || { echo NA; return; }
@@ -48,41 +50,54 @@ find_contigs_in_ds(){  # فقط داخل فولدر دیتاست
   fi
 }
 
+echo -e "Dataset\tLanguage\tRuntime\tN50"
+echo "------------------------------------------------------"
+
 cd "$WEEK1_DIR"
 datasets=($(discover_datasets))
 [[ ${#datasets[@]} -gt 0 ]] || { echo "No datasets under $DATA_DIR"; exit 1; }
 
-printf "%-8s\t%-8s\t%-8s\t%-6s\n" "Dataset" "Language" "Runtime" "N50"
-printf -- "-------------------------------------------------------------------\n"
-
 for ds in "${datasets[@]}"; do
   name="$(basename "$ds")"
 
-  # -------- Python --------
+  # ============= Python =============
   py_rt=0; py_log="$LOG_DIR/py_${name}.log"
   if [[ -f "$PY_ENTRY" ]] && run_and_time_logged py_rt "$py_log" -- python3 -u "$PY_ENTRY" "$ds"; then
     py_fa="$(grep -m1 '^WROTE:' "$py_log" | awk '{print $2}')"
     [[ -z "${py_fa:-}" ]] && py_fa="$(find_contigs_in_ds "$ds")"
-    echo "PY found: ${py_fa:-<none>}"
-    py_n50="$(n50_of_fasta "$py_fa")"
-    printf "%-8s\t%-8s\t%-8s\t%-6s\n" "$name" "python" "$(fmt_duration "$py_rt")" "$py_n50"
+    if [[ -n "${py_fa:-}" ]]; then
+      echo "[PY/$name] file: $py_fa"
+      ls -l "$py_fa" || true
+      echo "[PY/$name] size(bytes): $(wc -c <"$py_fa" || echo 0)"
+    else
+      echo "[PY/$name] contigs not found"
+    fi
+    py_n50="$(n50_of_fasta "${py_fa:-/dev/null}")"
+    echo -e "$name\tpython\t$(fmt_duration "$py_rt")\t$py_n50"
     echo "$name,python,$py_rt,$(fmt_duration "$py_rt"),$py_n50" >> "$RESULTS_CSV"
   else
-    echo "Python FAILED on $name (see $py_log)"
+    echo "[PY/$name] FAILED (see $py_log)"
     echo "$name,python,0,0:00:00,NA" >> "$RESULTS_CSV"
   fi
 
-  # -------- Codon --------
+  # ============= Codon =============
   codon_rt=0; codon_log="$LOG_DIR/codon_${name}.log"
   if [[ -f "$CODON_ENTRY" ]] && run_and_time_logged codon_rt "$codon_log" -- "$CODON_BIN" run -release -plugin seq "$CODON_ENTRY" "$ds"; then
     co_fa="$(grep -m1 '^WROTE:' "$codon_log" | awk '{print $2}')"
     [[ -z "${co_fa:-}" ]] && co_fa="$(find_contigs_in_ds "$ds")"
-    echo "CODON found: ${co_fa:-<none>}"
-    co_n50="$(n50_of_fasta "$co_fa")"
-    printf "%-8s\t%-8s\t%-8s\t%-6s\n" "$name" "codon" "$(fmt_duration "$codon_rt")" "$co_n50"
-    echo "$name,python,$codon_rt,$(fmt_duration "$codon_rt"),$co_n50" >> "$RESULTS_CSV"
+    if [[ -n "${co_fa:-}" ]]; then
+      echo "[CODON/$name] file: $co_fa"
+      ls -l "$co_fa" || true
+      echo "[CODON/$name] size(bytes): $(wc -c <"$co_fa" || echo 0)"
+    else
+      echo "[CODON/$name] contigs not found"
+    fi
+    co_n50="$(n50_of_fasta "${co_fa:-/dev/null}")"
+    echo -e "$name\tcodon\t$(fmt_duration "$codon_rt")\t$co_n50"
+    # ✅ این‌جا قبلاً اشتباه "python" نوشته شده بود
+    echo "$name,codon,$codon_rt,$(fmt_duration "$codon_rt"),$co_n50" >> "$RESULTS_CSV"
   else
-    echo "Codon FAILED on $name (see $codon_log)"
+    echo "[CODON/$name] FAILED (see $codon_log)"
     echo "$name,codon,0,0:00:00,NA" >> "$RESULTS_CSV"
   fi
 done
