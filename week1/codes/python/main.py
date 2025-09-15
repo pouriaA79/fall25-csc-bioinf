@@ -37,10 +37,13 @@ sys.setrecursionlimit(100000)
 
 def resolve_data_path(arg: str):
     p = os.path.abspath(arg)
+    print(p)
     if os.path.isdir(p):
         return p, os.path.basename(p)
     here = os.path.dirname(__file__)
+    print(here)
     p2 = os.path.abspath(os.path.join(here, "..","..", "data", arg))
+    print(p2)
     return p2, arg
 
 if __name__ == "__main__":
