@@ -105,14 +105,14 @@ I successfully:
 
 ### Bonus (data1) — BLAST species ID (summary)
 
-* **Method:** NCBI **BLASTN (megablast)** against **nt** using `week1/data/data1/contigs.fasta` (prioritized contigs ≥1 kb).
+* **Method:** NCBI **BLASTN (megablast)** against **nt** using `week1/data/data1/contigs.fasta`.
 * **Result:** Top hits consistently map to **Porphyromonas gingivalis**. Best match: **P. gingivalis W83** (Accession **AE015924.1**) with **100% query cover** and \~**99.8–99.9% identity** (max score ≈ **15,765**, dozens of matches). Very close hits also appear for strains **W50 / W50-BR1** and **A7436**.
 * **Conclusion:** Dataset **data1** most likely derives from **Porphyromonas gingivalis**, with **strain W83** as the leading candidate.
 
 
 ### Bonus (data2) — BLAST species ID (summary)
 
-* **Method:** NCBI **BLASTN (megablast)** against **nt** using `week1/data/data2/contigs.fasta` (prioritized contigs ≥1 kb).
+* **Method:** NCBI **BLASTN (megablast)** against **nt** using `week1/data/data2/contigs.fasta`.
 * **Result:** Top hits consistently map to **Porphyromonas gingivalis**. Best match: **P. gingivalis W83** (Accession **AE015924.1**) with **100% query cover** and \~**99.6% identity**. Very close matches also observed to strains **W50** and **A7436**.
 * **Conclusion:** Dataset **data2** most likely derives from **Porphyromonas gingivalis**, with **strain W83** as the leading candidate.
 
@@ -120,9 +120,25 @@ I successfully:
 
 ### Bonus (data3) — BLAST species ID (summary)
 
-* **Method:** NCBI **BLASTN (megablast)** against **nt** using `week1/data/data3/contigs.fasta` (prioritized contigs ≥1 kb).
+* **Method:** NCBI **BLASTN (megablast)** against **nt** using `week1/data/data3/contigs.fasta`.
 * **Result:** Top hits consistently map to **Paracidovorax citrulli** *(syn. Acidovorax citrulli)*. Best match: **Acidovorax citrulli AAC00-1, complete genome** (Accession **CP000512.1**) with **100% query cover** and \~**99.99% identity** (max score ≈ **18,137**). Additional high-scoring hits to other *P. citrulli* strains; much fewer to related *Paracidovorax/Acidovorax* species.
 * **Conclusion:** Dataset **data3** most likely derives from **Paracidovorax (Acidovorax) citrulli**, with **strain AAC00-1** as the leading candidate.
 
+## Bonus — Species ID via BLAST (summary)
+
+**Method.** NCBI **BLASTN (megablast)** against **nt**. Queries were the assembled contigs from `week1/data/data{1..3}/contigs.fasta`. 
+
+**Results.**
+
+| Dataset | Top species (accession)                          | Query cover | % identity      | Max score (approx.) | Notes |
+|--------:|--------------------------------------------------|-------------|-----------------|---------------------|-------|
+| data1   | *Porphyromonas gingivalis* **W83** (AE015924.1)  | 100%        | 99.8–99.9%      | ~15,765             | Many high-scoring matches; W50/A7436 also close |
+| data2   | *P. gingivalis* **W83** (AE015924.1)             | 100%        | ~99.6%          | ~15,6xx             | Close hits to W50/A7436 strains |
+| data3   | *Paracidovorax (Acidovorax) citrulli* **AAC00-1** (CP000512.1) | 100% | ~99.99%        | ~18,137             | Consistent top hits across strains |
+
+**Conclusion.**  
+data1–data2 most likely derive from **_Porphyromonas gingivalis_** (W83 strongest candidate); data3 from **_Paracidovorax/Acidovorax citrulli_** (AAC00-1).
+**Reproducibility.**  
+Performed via NCBI Web BLAST.
 
 
