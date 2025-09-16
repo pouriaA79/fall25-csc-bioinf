@@ -1,34 +1,3 @@
-# from dbg import DBG
-# from utils import read_data
-# import sys
-# import os
-# sys.setrecursionlimit(100000)
-# if __name__ == "__main__":
-#     argv = sys.argv
-#     data_path = f"../data/{argv[1]}"
-#     short1, short2, long1 = read_data(data_path)
-
-#     k = 25
-#     dbg = DBG(k=k, data_list=[short1, short2, long1])
-    
-#     output_dir = f"../data/{argv[1]}"
-#     output_file_path = f"{output_dir}/contig_python.fasta"
-
-#     # ایجاد دایرکتوری خروجی در صورت عدم وجود
-#     try:
-#         os.mkdir(output_dir)
-#     except OSError:
-#         pass # اگر دایرکتوری از قبل وجود داشته باشد، مشکلی نیست
-
-#     with open(output_file_path, 'w') as f:
-#         for i in range(20):
-#             c = dbg.get_longest_contig()
-#             if c is None:
-#                 break
-#             print(i, len(c))
-#             f.write('>contig_%d\n' % i)
-#             f.write(c + '\n')
-
 import os, sys
 from dbg import DBG
 from utils import read_data
@@ -37,13 +6,10 @@ sys.setrecursionlimit(100000)
 
 def resolve_data_path(arg: str):
     p = os.path.abspath(arg)
-    print(p)
     if os.path.isdir(p):
         return p, os.path.basename(p)
     here = os.path.dirname(__file__)
-    print(here)
     p2 = os.path.abspath(os.path.join(here, "..","..", "data", arg))
-    print(p2)
     return p2, arg
 
 if __name__ == "__main__":
