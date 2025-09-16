@@ -1,0 +1,24 @@
+AI TOOL AND MODEL
+ChatGPT — GPT-5 Thinking
+------------------------------------
+WHAT I USED AI FOR
+1.Explaining Codon type-realization errors and adding explicit type hints to classes.
+
+2.Rewriting recursive DFS logic to an iterative (stack-based) version to avoid recursion limits.
+
+3. Writing a robust evaluate.sh to run Python & Codon, time them.
+
+-------------------
+PROMPTS
+
+1. Codon throws NoneType has no __hash__ during dict realization in my DBG. Show how to add explicit type annotations for my graph classes. I need fields like children set, counts, kmer string, visited, depth, and max-depth-child. Give a minimal example using from typing import Set, Optional
+
+2. Convert my recursive DFS that computes longest-path depth in a De Bruijn graph into an iterative version with an explicit stack
+
+3. Write a Bash script week1/evaluate.sh that:
+
+    * Runs Python and Codon entries on datasets data1..data3.
+
+    * Times each run (in seconds).
+
+    * Computes N50 with a small inline Python snippet
