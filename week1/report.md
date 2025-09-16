@@ -91,6 +91,7 @@ I successfully:
 
   * With the current simple assembler and available resources, `data4` was **not reproducible** for me.
   * Per the assignment updates: I clearly document this in the report and mark the repo as not fully reproducible for `data4` as-is.
+  * Early experiments toward iterative DFS, but not fully productionized for data4 under time/CI constraints
 
 **Potential next steps (future work):**
 
