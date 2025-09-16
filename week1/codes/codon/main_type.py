@@ -21,8 +21,7 @@ if __name__ == "__main__":
     # try:
     #     os.mkdir(output_dir)
     # except OSError:
-    #     pass # اگر دایرکتوری از قبل وجود داشته باشد، مشکلی نیست
-
+    #     pass # 
     with open(output_file_path, 'w') as f:
         for i in range(20):
             c = dbg.get_longest_contig()
@@ -37,14 +36,10 @@ if __name__ == "__main__":
 # from utils_type import read_data
 # from python import os, sys  # در Codon بهتره os/sys را از bridge بیاریم
 
-# # اختیاری: روی Codon اثر خاصی نداره
 # sys.setrecursionlimit(100000)
 
 # def resolve_data_path(arg: str) -> str:
-#     """
-#     اگر arg مسیر کامل/نسبیِ موجود باشد همان را برمی‌گرداند.
-#     اگر فقط نام دیتاست باشد (data1, data2, ...)، آن را زیر cwd/data می‌سازد.
-#     """
+
 #     p = os.path.abspath(arg)
 #     if os.path.isdir(p):
 #         return p
@@ -81,11 +76,7 @@ if __name__ == "__main__":
 
 # # ---------- path utils ----------
 # def resolve_data_path(arg: str) -> str:
-#     """
-#     اگر arg دایرکتوری باشد همان را برمی‌گرداند.
-#     اگر فقط نام دیتاست باشد (مثل data1)، مسیر cwd/data/arg را می‌سازد.
-#     (در CI، cwd = week1 است)
-#     """
+
 #     p = os.path.abspath(arg)
 #     if os.path.isdir(p):
 #         return p
@@ -115,7 +106,6 @@ if __name__ == "__main__":
 #     s2p = os.path.join(dp, "short_2.fasta")
 #     lp  = os.path.join(dp, "long.fasta")
 
-#     # وجود فایل‌ها را چک کنیم تا اگر نبود، پیام واضح بدهیم
 #     for p in (s1p, s2p, lp):
 #         if not os.path.isfile(p):
 #             raise FileNotFoundError(f"missing file: {p}")
@@ -157,10 +147,10 @@ if __name__ == "__main__":
 #         print(f"WROTE: {out_fa}")
 
 #     except BaseException as e:
-#         # traceback کامل تا در CI بفهمیم دقیقاً کجا گیر کرده
 #         print("[CODON] ERROR:", repr(e))
 #         traceback.print_exc()
 #         sys.exit(2)
+
 
 
 
