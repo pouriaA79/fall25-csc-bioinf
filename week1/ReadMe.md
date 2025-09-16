@@ -100,7 +100,6 @@ I successfully:
 
 ## Reproducibility Notes
 
-* The assignment update explicitly says to use **N50** and to **document** when results aren’t fully reproducible.
 * I reproduced N50 parity on **data1–data3** (Python vs. Codon).
 * I clearly document the failure on **data4**.
 
