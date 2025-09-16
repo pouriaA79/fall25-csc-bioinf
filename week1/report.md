@@ -87,7 +87,6 @@ I successfully:
 
   * Increased recursion limit (Python)
   * `ulimit -s` in WSL (stack size); WSL still crashed
-  * Early experiments toward iterative DFS and batching, but not fully productionized for data4 under time/CI constraints
 * Conclusion:
 
   * With the current simple assembler and available resources, `data4` was **not reproducible** for me.
