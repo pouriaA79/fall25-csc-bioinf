@@ -10,7 +10,7 @@ I successfully:
 * Ported the code to **Codon** and matched **N50** values with Python on **data1–data3**
 * Automated both runs with **CI** and produced a `results.csv` plus contig artifacts
 
-`data4` currently **fails** for both Python and Codon under my environment (explained below). Per the assignment updates, I document this clearly in the report (reproducibility caveat).
+`data4` currently **fails** for both Python and Codon under my environment (explained below).
 
 ---
 ## Porting Notes (Python → Codon) & Fixes
