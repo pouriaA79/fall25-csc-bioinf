@@ -50,14 +50,7 @@ I successfully:
          max_depth_child: Optional[int]
      ```
    * I initially tried mixing Python decorators (`@python`) to wrap ambiguous code paths, but the cleanest, most stable solution was to **fully annotate** the data structures.
-4. **`__file__` in Codon**
 
-   * In Codon, `__file__` isn’t defined in this integration path, which caused resolution errors at realization time.
-   * **Fix:** avoid `__file__`. For dataset resolution:
-
-     * If the argument is an **existing directory**, use it directly.
-     * Otherwise resolve as `os.path.join(os.getcwd(), "data", <name>)`.
-     * This matches how CI runs (cwd = `week1`).
 ## Automation (`evaluate.sh`)
 
 * Runs both Python and Codon for `data1..data3`
