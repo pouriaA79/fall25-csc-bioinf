@@ -23,7 +23,7 @@ if __name__ == "__main__":
     k = 25
     dbg = DBG(k=k, data_list=[short1, short2, long1])
 
-    out_dir = data_path                      # ← داخل پوشه دیتاست
+    out_dir = data_path                      
     os.makedirs(out_dir, exist_ok=True)
     out_fa = os.path.join(out_dir, "contigs.fasta")
     
