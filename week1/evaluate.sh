@@ -11,7 +11,7 @@ CODON_ENTRY="${CODON_ENTRY:-$CODE_DIR/codon/main_type.py}"
 CODON_BIN="$(command -v codon || echo "$HOME/.codon/bin/codon")"
 
 RESULTS_CSV="$WEEK1_DIR/results.csv"
-echo "dataset,language,runtime_sec,n50" > "$RESULTS_CSV"
+echo "dataset,language,runtime_sec,runtime_hms,n50" > "$RESULTS_CSV"
 
 fmt_duration(){ s="$1"; printf "%d:%02d:%02d" $((s/3600)) $(((s%3600)/60)) $((s%60)); }
 
@@ -99,7 +99,7 @@ for ds in "${datasets[@]}"; do
     py_fa="$(find_best_fasta_in_ds "$ds")"
     py_n50="$(n50_of_fasta "${py_fa:-/dev/null}")"
     echo -e "$name\tpython\t$(fmt_duration "$py_rt")\t${py_n50:-NA}"
-    echo "$ds_name,python,$py_runtime,$py_n50" >> "$RESULTS_CSV"
+    echo "$ds_name,python,$py_runtime,$(fmt_duration "$py_runtime"),$py_n50" >> "$RESULTS_CSV"
   else
     echo -e "$name\tpython\t0:00:00\tNA"
     echo "$name,python,0,0:00:00,NA" >> "$RESULTS_CSV"
@@ -112,7 +112,8 @@ for ds in "${datasets[@]}"; do
     co_fa="$(find_best_fasta_in_ds "$ds")"
     co_n50="$(n50_of_fasta "${co_fa:-/dev/null}")"
     echo -e "$name\tcodon\t$(fmt_duration "$co_rt")\t${co_n50:-NA}"
-    echo "$ds_name,codon,$codon_runtime,$codon_n50" >> "$RESULTS_CSV"
+    echo "$ds_name,codon,$codon_runtime,$(fmt_duration "$codon_runtime"),$codon_n50" >> "$RESULTS_CSV"
+
   else
     echo -e "$name\tcodon\t0:00:00\tNA"
     echo "$name,codon,0,0:00:00,NA" >> "$RESULTS_CSV"
