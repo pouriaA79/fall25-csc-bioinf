@@ -38,7 +38,9 @@ The process of converting the `trviz` logic to a stable, testable Codon program 
 
 * **Testing (`test.py`):** A self-contained, Codon-only test suite was developed. It includes unit tests for `Decomposer` and the encoding functions, as well as a robust integration test for `MotifAligner` that verifies its interaction with `mafft`.
   
-* **A key aspect of the testing strategy was the use of synthetic data.** Since no specific test dataset was provided for this task, simple, predictable data was created directly within the `test.py` script. This allowed for the isolated and precise testing of each component: unit tests for the `Decomposer` and encoding functions, and a robust integration test for the `MotifAligner`. All formal tests executed by the CI are performed on this synthetic data. 
+* **A key aspect of the testing strategy was the use of synthetic data.** Since no specific test dataset was provided for this task, simple, predictable data was created directly within the `test.py` script. This allowed for the isolated and precise testing of each component: unit tests for the `Decomposer` and encoding functions, and a robust integration test for the `MotifAligner`. All formal tests executed by the CI are performed on this synthetic data.
+
+Separately, to validate the complete, end-to-end pipeline, a sample dataset from the original `trviz` paper was used for manual testing with the main script located in the `code/` directory. This confirmed that the full workflow operates correctly on realistic data.
 
 * **CI (`week2-ci.yml`):** A GitHub Actions workflow automates the entire testing process. On every `push` and `pull_request` that affects the `week2/` directory, the CI job:
     1.  Checks out the repository code.
@@ -55,5 +57,6 @@ This CI provides a complete, automated guarantee of the project's correctness.
 ## Time Estimate
 
 * **Estimated Time to Complete:** (Approximately 30 hours)
+
 
 
