@@ -199,7 +199,6 @@ def run_visualization_demo():
     aligned_data = aligner.align_encoded_seqs(encoded_data)
     
     # 4. Visualize
-    # Because MAFFT returns single strings, we must manually add spaces for the Visualizer
     aligned_data_spaced = {name: ' '.join(list(seq)) for name, seq in aligned_data.items()}
 
     viz = Visualizer(output_dir=".")
@@ -217,5 +216,6 @@ if __name__ == "__main__":
     test_aligner_logic()
     run_visualization_demo() # New visualization step
     print("\nAll tests and demos finished successfully!")
+
 
 
