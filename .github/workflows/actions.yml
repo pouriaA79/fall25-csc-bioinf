@@ -1,5 +1,13 @@
 name: Github CI
-on: [push]
+on:
+  push:
+    paths:
+      - "week1/**"
+      - ".github/workflows/actions.yml"
+  pull_request:
+    paths:
+      - "week1/**"
+      - ".github/workflows/actions.yml"
 
 jobs:
   test:
