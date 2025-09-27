@@ -11,7 +11,7 @@ WHAT I USED AI FOR
 -------------------
 PROMPTS
 
-1. Codon throws NoneType has no __hash__ during dict realization in my DBG. Show how to add explicit type annotations for my graph classes. I need fields like children set, counts, kmer string, visited, depth, and max-depth-child. Give a minimal example using from typing import Set, Optional
+1. Codon throws NoneType has no __hash__ during dict realization in my DBG.
 
 2. Convert my recursive DFS that computes longest-path depth in a De Bruijn graph into an iterative version with an explicit stack
 
