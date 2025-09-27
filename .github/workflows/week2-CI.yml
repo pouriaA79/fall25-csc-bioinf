@@ -48,3 +48,4 @@ jobs:
           set -euxo pipefail
           cd week2
           codon run test/test.py
+
