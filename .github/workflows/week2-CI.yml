@@ -1,0 +1,50 @@
+name: Week 2 - TRVIZ Project CI
+
+on:
+  push:
+    paths:
+      - "week2/**"
+      - ".github/workflows/week2-ci.yml"
+  pull_request:
+    paths:
+      - "week2/**"
+      - ".github/workflows/week2-ci.yml"
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      - name: Install Codon and Seq Plugin
+        run: |
+          set -euxo pipefail
+          CODON_HOME="${HOME}/.codon"
+          mkdir -p "${CODON_HOME}/lib/codon/plugins"
+          CODON_URL="https://github.com/exaloop/codon/releases/download/v0.19.3/codon-linux-x86_64.tar.gz"
+          SEQ_URL="https://github.com/exaloop/seq/releases/download/v0.11.5/seq-linux-x86_64.tar.gz"
+          curl -fL "$CODON_URL" -o /tmp/codon.tgz
+          curl -fL "$SEQ_URL"   -o /tmp/seq.tgz
+          tar -xzf /tmp/codon.tgz -C "${CODON_HOME}" --strip-components=1
+          tar -xzf /tmp/seq.tgz   -C "${CODON_HOME}/lib/codon/plugins"
+          echo "${CODON_HOME}/bin" >> "$GITHUB_PATH"
+          codon --version
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Dependencies and Set up Python Bridge
+        run: |
+          set -euxo pipefail
+          sudo apt-get update && sudo apt-get install -y mafft
+          pip install matplotlib biopython find_libpython
+          echo "CODON_PYTHON=$(find_libpython)" >> "$GITHUB_ENV"
+
+      - name: Run Week 2 Tests
+        run: |
+          set -euxo pipefail
+          cd week2
+          codon run test/test.py
