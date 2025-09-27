@@ -65,5 +65,11 @@ jobs:
           set -euxo pipefail
           cd week2
           codon run test/test.py
+      - name: Upload Visualization Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: visualization-output
+          path: week2/test_visualization.png
+
 
 
