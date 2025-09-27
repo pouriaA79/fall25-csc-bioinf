@@ -1,13 +1,10 @@
 
 from python import sys, os, subprocess, re
 from typing import Dict, List, Tuple
-# Import matplotlib for the Visualizer
 from python import matplotlib.pyplot as plt
 from python import matplotlib.colors as mcolors
 
 # ==============================================================================
-# Part 1: Copied Classes and Functions
-# All necessary logic is included in this file.
 # ==============================================================================
 
 class Decomposer:
@@ -141,7 +138,6 @@ class Visualizer:
         plt.close()
 
 # ==============================================================================
-# Part 2: Test Functions
 # ==============================================================================
 
 def test_decomposer_logic():
@@ -213,7 +209,6 @@ def run_visualization_demo():
     print("   Visualization demo complete! Check for 'test_visualization.png' file. 🖼️")
 
 # ==============================================================================
-# Part 3: Main execution block
 # ==============================================================================
 if __name__ == "__main__":
     print("\nStarting Codon tests...")
@@ -222,4 +217,5 @@ if __name__ == "__main__":
     test_aligner_logic()
     run_visualization_demo() # New visualization step
     print("\nAll tests and demos finished successfully!")
+
 
