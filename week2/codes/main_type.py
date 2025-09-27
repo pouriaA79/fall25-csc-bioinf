@@ -3,9 +3,6 @@ from python import matplotlib.pyplot as plt
 from python import matplotlib.colors as mcolors # Added for normalization
 from typing import Dict, List, Optional, Tuple
 
-# ==============================================================================
-# All helper classes are now in this single file to avoid import errors in Codon.
-# ==============================================================================
 
 class Decomposer:
     """Decomposes DNA sequences into simple overlapping k-mers."""
@@ -44,9 +41,6 @@ class Decomposer:
                 sequences[current_name] = self.decompose(current_seq)
         return sequences
 
-# ==============================================================================
-# MotifEncoder logic is now implemented as standalone functions.
-# ==============================================================================
 
 def build_encoding_maps(all_decomposed_trs: Dict[str, List[str]]) -> Tuple[Dict[str, int], Dict[str, str], Dict[str, str]]:
     """
@@ -150,7 +144,6 @@ class MotifAligner:
                 if current_name and current_seq:
                     aligned_output[current_name] = current_seq
 
-            # ==================== START OF REVISED FIX (MAFFT Post-processing) ====================
             processed_alignment: Dict[str, str] = {}
             for name, seq in aligned_output.items():
                 # This regex ensures that every number (one or more digits) or a hyphen
@@ -162,7 +155,6 @@ class MotifAligner:
                 processed_alignment[name] = spaced_seq
             
             return processed_alignment
-            # ===================== END OF REVISED FIX =====================
 
         finally:
             if os.path.exists(tmp_input_file):
@@ -356,4 +348,5 @@ def main() -> None:
     print(f"\nStep 4: Visualization complete. Results saved in '{results_dir}' directory.")
 
 if __name__ == "__main__":
+
     main()
