@@ -1,11 +1,8 @@
-# File: week2/test/test.py
-# Standalone test script with a more robust aligner test.
 
 from python import sys, os, subprocess, re
 from typing import Dict, List, Tuple
 
 # ==============================================================================
-# Part 1: Copied Classes and Functions from main_type.py
 # ==============================================================================
 
 class Decomposer:
@@ -102,7 +99,6 @@ class MotifAligner:
                 os.remove(tmp_input_file)
 
 # ==============================================================================
-# Part 2: Test Functions
 # ==============================================================================
 
 def test_decomposer_logic():
@@ -146,7 +142,6 @@ def test_aligner_logic():
     
     actual_alignment = aligner.align_encoded_seqs(encoded_sequences)
     
-    # --- Start of the new, robust checks ---
     
     # 1. Check if the output contains the same sample names as the input
     assert sorted(list(actual_alignment.keys())) == sorted(list(encoded_sequences.keys())), "Aligner FAILED: Output keys do not match input keys."
@@ -160,7 +155,6 @@ def test_aligner_logic():
     for i in range(1, len(aligned_seqs)):
         assert len(aligned_seqs[i]) == first_seq_len, f"Aligner FAILED: Sequences have unequal lengths after alignment. Got {first_seq_len} and {len(aligned_seqs[i])}"
 
-    # --- End of the new, robust checks ---
     
     # Optional: Print the actual alignment for manual inspection
     print(f"   - MAFFT actual output: {actual_alignment}")
@@ -169,11 +163,11 @@ def test_aligner_logic():
 
 
 # ==============================================================================
-# Part 3: Main execution block
 # ==============================================================================
 if __name__ == "__main__":
     print("\nStarting Codon tests...")
     test_decomposer_logic()
     test_encoding_logic()
     test_aligner_logic()
-    print("\nAll tests finished successfully! 🎉")
+
+    print("\nAll tests finished successfully! ")
