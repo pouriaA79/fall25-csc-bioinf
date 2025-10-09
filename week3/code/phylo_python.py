@@ -17,7 +17,6 @@ class TreeNode:
     def is_leaf(self):
         return len(self.children) == 0
 
-    # helper to trace path to leaf index
     def _path_to(self, target, path):
         if self.is_leaf():
             if self.index == target:
@@ -55,7 +54,6 @@ class Tree:
         if i1 == i2:
             return 0.0
 
-        # مسیر از ریشه تا برگ‌ها (نه برعکس)
         def trace_path(node, target, path):
             if node.is_leaf():
                 if node.index == target:
@@ -74,16 +72,13 @@ class Tree:
         assert trace_path(self.root, i1, path1)
         assert trace_path(self.root, i2, path2)
 
-        # مسیرها از برگ تا ریشه‌اند، باید معکوس کنیم تا از ریشه شروع کنیم
         path1.reverse()
         path2.reverse()
 
-        # پیدا کردن آخرین گره مشترک (LCA)
         k = 0
         while k < len(path1) and k < len(path2) and path1[k][0] is path2[k][0]:
             k += 1
 
-        # تابع برای جمع طول شاخه‌ها از نقطه LCA تا برگ
         def branch_length(path, start):
             total = 0.0
             for j in range(start, len(path)):
@@ -130,10 +125,8 @@ def upgma(D):
                     best_i = i
                     best_j = j
 
-        # ارتفاع جدید (درخت جدید بالاتر از فرزندان)
         new_height = best_d / 2.0
 
-        # ساخت شاخه‌های جدید بر اساس ارتفاع واقعی فرزندها
         left_len = new_height - heights[best_i]
         right_len = new_height - heights[best_j]
         if left_len < 0.0:
@@ -145,14 +138,12 @@ def upgma(D):
                           [left_len, right_len],
                           -1)
 
-        # به‌روزرسانی ارتفاع جدید برای parent
         nodes[best_i] = parent
         heights[best_i] = new_height
         clusters[best_i].extend(clusters[best_j])
         active[best_j] = False
         active_count -= 1
 
-    # پیدا کردن root نهایی
     for i in range(n):
         if active[i]:
             return Tree(nodes[i])
@@ -208,7 +199,6 @@ def neighbor_joining(dist):
             duk = 0.5 * (dij(best_i, k) + dij(best_j, k) - di_j)
             new_row.append(duk)
 
-        # expand dist matrix
         needed = len(nodes)
         if needed > len(dist):
             for row in dist:
@@ -235,3 +225,4 @@ def neighbor_joining(dist):
     dab = dist[a_id][b_id]
     root = TreeNode([nodes[a_id], nodes[b_id]], [dab / 2.0, dab / 2.0], -1)
     return Tree(root)
+
