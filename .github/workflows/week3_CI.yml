@@ -1,0 +1,77 @@
+name: Week 3 - Phylo Codon vs Python CI
+
+on:
+  push:
+    paths:
+      - "week3/**"
+      - ".github/workflows/week3-ci.yml"
+  pull_request:
+    paths:
+      - "week3/**"
+      - ".github/workflows/week3-ci.yml"
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v4
+
+      # -----------------------------
+      # Install Codon + seq plugin
+      # -----------------------------
+      - name: Install Codon and seq plugin
+        run: |
+          set -euxo pipefail
+          CODON_HOME="${HOME}/.codon"
+          mkdir -p "${CODON_HOME}/lib/codon/plugins"
+
+          CODON_URL="https://github.com/exaloop/codon/releases/download/v0.19.3/codon-linux-x86_64.tar.gz"
+          SEQ_URL="https://github.com/exaloop/seq/releases/download/v0.11.5/seq-linux-x86_64.tar.gz"
+
+          curl -fL "$CODON_URL" -o /tmp/codon.tgz
+          curl -fL "$SEQ_URL"   -o /tmp/seq.tgz
+
+          tar -xzf /tmp/codon.tgz -C "${CODON_HOME}" --strip-components=1
+          tar -xzf /tmp/seq.tgz   -C "${CODON_HOME}/lib/codon/plugins"
+
+          echo "${CODON_HOME}/bin" >> "$GITHUB_PATH"
+          "${CODON_HOME}/bin/codon" --version
+          echo "✅ Codon installed successfully"
+
+      # -----------------------------
+      # Set up Python and dependencies
+      # -----------------------------
+      - name: Set up Python environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies (Python, Biotite, etc.)
+        run: |
+          set -euxo pipefail
+          sudo apt-get update && sudo apt-get install -y mafft
+          pip install biopython biotite find_libpython matplotlib
+          echo "CODON_PYTHON=$(find_libpython)" >> "$GITHUB_ENV"
+
+      # -----------------------------
+      # Run evaluate.sh for benchmarks
+      # -----------------------------
+      - name: Run evaluate.sh benchmark
+        run: |
+          set -euxo pipefail
+          cd week3
+          chmod +x evaluate.sh
+          bash evaluate.sh | tee evaluate_output.txt
+
+      # -----------------------------
+      # Save results as artifacts
+      # -----------------------------
+      - name: Upload benchmark artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: week3-results
+          path: |
+            week3/evaluate_output.txt
+            week3/tests/python_output.txt
+            week3/tests/codon_output.txt
