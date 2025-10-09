@@ -73,5 +73,5 @@ jobs:
           name: week3-results
           path: |
             week3/evaluate_output.txt
-            week3/tests/python_output.txt
-            week3/tests/codon_output.txt
+            week3/python_output.txt
+            week3/codon_output.txt
