@@ -1,12 +1,9 @@
 import sys, os
 
-# مسیر فایل جاری (مثلاً week3/tests/)
 base_dir = os.path.dirname(os.path.abspath(__file__))
 
-# مسیر src/
 src_dir = os.path.join(base_dir, "..", "src")
 
-# اضافه کردن مسیر src به sys.path
 if src_dir not in sys.path:
     sys.path.append(src_dir)
 
@@ -36,3 +33,4 @@ if __name__ == "__main__":
         test_upgma()
     
     print(f"Runtime: {int((time.perf_counter() - t0)*1000)}ms")
+
