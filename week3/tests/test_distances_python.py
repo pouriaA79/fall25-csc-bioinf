@@ -1,18 +1,12 @@
 import sys, os
 
-# مسیر فایل جاری (مثلاً week3/tests/)
 base_dir = os.path.dirname(os.path.abspath(__file__))
 
-# مسیر src/
 src_dir = os.path.join(base_dir, "..", "src")
 
-# اضافه کردن مسیر src به sys.path
 if src_dir not in sys.path:
     sys.path.append(src_dir)
 
-# یا
-# from phylo_python import neighbor_joining
-# یا هر تابع دیگه از phylo_python.py
 
 import time
 from phylo_python import upgma
@@ -39,3 +33,4 @@ if __name__ == "__main__":
         test_distances()
     # test_distances()
     print(f"Runtime: {int((time.perf_counter() - t0)*1000)}ms")
+
