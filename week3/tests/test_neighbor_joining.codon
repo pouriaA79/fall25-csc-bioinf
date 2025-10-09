@@ -1,6 +1,3 @@
-# from python import sys as pysys
-# pysys.path[:0] = ["..", "../src"]
-
 
 from python import time
 from .. code.phylo import neighbor_joining, Tree
@@ -31,3 +28,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
