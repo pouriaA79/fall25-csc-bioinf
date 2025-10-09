@@ -1,5 +1,4 @@
 import sys, os
-
 base_dir = os.path.dirname(os.path.abspath(__file__))
 
 src_dir = os.path.join(base_dir, "..", "src")
@@ -33,4 +32,5 @@ if __name__ == "__main__":
         test_distances()
     # test_distances()
     print(f"Runtime: {int((time.perf_counter() - t0)*1000)}ms")
+
 
