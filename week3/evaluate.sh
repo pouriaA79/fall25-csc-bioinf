@@ -30,7 +30,6 @@ echo "python      ${PY_TOTAL}ms"
 unset PYTHONPATH
 
 # ---------- Codon ----------
-# Codon tests now run from the ROOT directory
 export CODONPATH="$DIR/code"
 CODON_OUTPUT=$(codon run tests/test_distances.codon; \
                codon run tests/test_neighbor_joining.codon; \
