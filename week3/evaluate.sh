@@ -15,7 +15,7 @@ extract_total_runtime() {
         fi
     done
     echo $total
-
+}
 export PYTHONPATH="$DIR/code"
 PY_OUTPUT=$(python3 tests/test_distances_python.py; \
             python3 tests/test_neighbor_joining_python.py; \
