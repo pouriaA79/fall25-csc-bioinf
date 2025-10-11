@@ -1,0 +1,19 @@
+
+from python import time
+from .. code.phylo import upgma
+from python import numpy as pnp
+import numpy.pybridge
+def test_upgma() -> None:
+    D = pnp.loadtxt("tests/distances.txt", dtype=pnp.int64)
+    tree = upgma(D)
+    print("UPGMA: dist(0,2) =", tree.get_distance(0, 2))
+    print("UPGMA: dist(3,4) =", tree.get_distance(3, 4))
+
+def main():
+    t0 = time.perf_counter()
+    for _ in range(1):
+        test_upgma()
+    print(f"Runtime: {int((time.perf_counter() - t0)*1000)}ms")
+
+if __name__ == "__main__":
+    main()

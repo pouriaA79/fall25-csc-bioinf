@@ -1,0 +1,23 @@
+
+from python import time
+from .. code.phylo import upgma
+from python import numpy as pnp
+import numpy.pybridge
+def test_distances() -> None:
+
+    D = pnp.loadtxt("tests/distances.txt", dtype=pnp.int64)
+
+    tree = upgma(D)
+    print("Distance(0,0) =", tree.get_distance(0, 0))
+    print("Distance(0,1) =", tree.get_distance(0, 1))
+    print("Distance(3,4) =", tree.get_distance(3, 4))
+    print("Topological distance(3,4) =", tree.get_distance(3, 4, topological=True))
+
+def main():
+    t0 = time.perf_counter()
+    for _ in range(1):
+        test_distances()
+    print(f"Runtime: {int((time.perf_counter() - t0)*1000)}ms")
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,244 @@
+from typing import List, Optional, Tuple
+from math import inf
+
+from python import numpy as pnp
+import numpy.pybridge
+
+@extend
+class set:
+    def __hash__(self):
+        MAX = int.MAX
+        MASK = 2 * MAX + 1
+        n = len(self)
+        h = 1927868237 * (n + 1)
+        h &= MASK
+        for x in self:
+            hx = hash(x)
+            h ^= (hx ^ (hx << 16) ^ 89869747) * 3644798167
+            h &= MASK
+        h = h * 69069 + 907133923
+        h &= MASK
+        if h > MAX:
+            h -= MASK + 1
+        if h == -1:
+            h = 590923713
+        return h
+
+MAX_FLOAT: float = pnp.finfo(pnp.float64).max
+
+
+class TreeNode:
+    children: List[TreeNode]
+    distances: List[float]
+    index: int
+
+    def __init__(self,
+                 children: Optional[List[TreeNode]] = None,
+                 distances: Optional[List[float]] = None,
+                 index: int = -1):
+        if children is None:
+            self.children = []
+        else:
+            self.children = [c for c in children]
+        if distances is None:
+            self.distances = []
+        else:
+            self.distances = [float(d) for d in distances]
+        # 
+        assert len(self.children) == len(self.distances)
+        self.index = index
+
+    def is_leaf(self) -> bool:
+        return len(self.children) == 0
+
+
+class Tree:
+    root: TreeNode
+    leaves: List[TreeNode]
+
+    def __init__(self, root: TreeNode):
+        self.root = root
+        self.leaves = []
+        self._collect_leaves(root)
+        self.leaves.sort(key=lambda n: n.index)
+        for i, leaf in enumerate(self.leaves):
+            assert leaf.index == i
+
+    def _collect_leaves(self, node: TreeNode) -> None:
+        if node.is_leaf():
+            self.leaves.append(node)
+        else:
+            for ch in node.children:
+                self._collect_leaves(ch)
+
+    def get_distance(self, i1: int, i2: int, topological: bool = False) -> float:
+        # Returns additive or topological distance between leaves i1 and i2.
+        if i1 == i2:
+            return 0.0
+
+        # Trace path from root to each leaf as (node, edge_len) from root downwards.
+        def trace_path(node: TreeNode, target: int,
+                       path: List[Tuple[TreeNode, float]]) -> bool:
+            if node.is_leaf():
+                if node.index == target:
+                    path.append((node, 0.0))
+                    return True
+                return False
+            for ci, child in enumerate(node.children):
+                if trace_path(child, target, path):
+                    path.append((node, float(node.distances[ci]) if ci < len(node.distances) else 0.0))
+                    return True
+            return False
+
+        path1: List[Tuple[TreeNode, float]] = []
+        path2: List[Tuple[TreeNode, float]] = []
+        assert trace_path(self.root, i1, path1)
+        assert trace_path(self.root, i2, path2)
+
+        path1.reverse()
+        path2.reverse()
+
+        k = 0
+        while k < len(path1) and k < len(path2) and path1[k][0] is path2[k][0]:
+            k += 1
+
+        def sum_branch(path: List[Tuple[TreeNode, float]], start: int) -> float:
+            s: float = 0.0
+            # start is k-1 so we include the branch leaving LCA
+            for j in range(start, len(path)):
+                s += (1.0 if topological else float(path[j][1]))
+            return s
+
+        lca_idx = k - 1 if k > 0 else 0
+        return sum_branch(path1, lca_idx) + sum_branch(path2, lca_idx)
+
+
+def upgma(D) -> Tree:
+    n: int = int(D.shape[0])
+    if n == 0:
+        raise ValueError("Empty distance matrix")
+
+    # clusters start as singletons
+    clusters: List[List[int]] = [[i] for i in range(n)]
+    heights: List[float] = [0.0 for _ in range(n)]
+    nodes: List[TreeNode] = [TreeNode(index=i) for i in range(n)]
+    active: List[bool] = [True for _ in range(n)]
+
+    def cluster_distance(a: int, b: int) -> float:
+        total: float = 0.0
+        count: int = 0
+        # average of all pair distances
+        for i in clusters[a]:
+            for j in clusters[b]:
+                total += float(D[i, j])
+                count += 1
+        return total / float(count) if count > 0 else 0.0
+
+    active_count: int = n
+    while active_count > 1:
+        best_i, best_j = -1, -1
+        best_d: float = MAX_FLOAT
+
+        for i in range(n):
+            if not active[i]:
+                continue
+            for j in range(i + 1, n):
+                if not active[j]:
+                    continue
+                d = cluster_distance(i, j)
+                if d < best_d:
+                    best_d = d
+                    best_i, best_j = i, j
+
+        new_height: float = best_d / 2.0
+        left_len: float = new_height - heights[best_i]
+        right_len: float = new_height - heights[best_j]
+        if left_len < 0.0:  left_len = 0.0
+        if right_len < 0.0: right_len = 0.0
+
+        parent = TreeNode([nodes[best_i], nodes[best_j]], [left_len, right_len], -1)
+
+        nodes[best_i] = parent
+        heights[best_i] = new_height
+        clusters[best_i].extend(clusters[best_j])
+        active[best_j] = False
+        active_count -= 1
+
+    for i in range(n):
+        if active[i]:
+            return Tree(nodes[i])
+    raise RuntimeError("UPGMA: no active cluster found")
+
+def neighbor_joining(dist) -> Tree:
+    n0: int = int(dist.shape[0])
+    
+    assert n0 > 1
+
+    active_ids: List[int] = [i for i in range(n0)]
+    nodes: List[TreeNode] = [TreeNode(index=i) for i in range(n0)]
+
+    def dij(i: int, j: int) -> float:
+        return float(dist[active_ids[i], active_ids[j]])
+
+    while len(active_ids) > 2:
+        m = len(active_ids)
+        r: List[float] = [0.0 for _ in range(m)]
+        for i in range(m):
+            ri: float = 0.0
+            for j in range(m):
+                if i != j:
+                    ri += dij(i, j)
+            r[i] = ri
+
+        best_i, best_j = -1, -1
+        best_q: float = MAX_FLOAT
+        for i in range(m):
+            for j in range(i + 1, m):
+                q = (m - 2.0) * dij(i, j) - r[i] - r[j]
+                if q < best_q:
+                    best_q, best_i, best_j = q, i, j
+
+        di_j = dij(best_i, best_j)
+        li = 0.5 * di_j + (r[best_i] - r[best_j]) / (2.0 * (m - 2.0))
+        lj = di_j - li
+        if li < 0.0: li = 0.0
+        if lj < 0.0: lj = 0.0
+
+        u = TreeNode([nodes[active_ids[best_i]],
+                      nodes[active_ids[best_j]]],
+                     [li, lj],
+                     -1)
+        new_id = len(nodes)
+        nodes.append(u)
+
+        new_row: List[float] = []
+        for k in range(m):
+            if k == best_i or k == best_j:
+                continue
+            duk = 0.5 * (dij(best_i, k) + dij(best_j, k) - di_j)
+            new_row.append(duk)
+
+        needed = len(nodes)
+        if needed > dist.shape[0]:
+            pad_n = needed - dist.shape[0]
+            bigger = pnp.zeros((needed, needed), dtype=pnp.float64)
+            bigger[:needed - 1, :needed - 1] = dist
+            dist = bigger  
+
+        survivors: List[int] = []
+        for idx in range(m):
+            if idx not in (best_i, best_j):
+                survivors.append(active_ids[idx])
+
+
+        for pos, survivor_id in enumerate(survivors):
+            dval = float(new_row[pos])
+            dist[new_id, survivor_id] = dval
+            dist[survivor_id, new_id] = dval
+
+        active_ids = survivors + [new_id]
+
+    a_id, b_id = active_ids[0], active_ids[1]
+    dab = float(dist[a_id, b_id])
+    root = TreeNode([nodes[a_id], nodes[b_id]], [dab / 2.0, dab / 2.0], -1)
+    return Tree(root)
