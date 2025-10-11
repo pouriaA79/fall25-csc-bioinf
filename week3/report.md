@@ -86,8 +86,8 @@ The evaluation script:
    ```
    Language    Total Runtime
    --------------------------
-   python      5982ms
-   codon       1249ms
+   python      19ms
+   codon       2ms
    ```
 
 ### **GitHub Actions Workflow (`week3-ci.yml`)**
