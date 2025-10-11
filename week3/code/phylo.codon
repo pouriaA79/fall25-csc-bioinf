@@ -44,7 +44,6 @@ class TreeNode:
             self.distances = []
         else:
             self.distances = [float(d) for d in distances]
-        # 
         assert len(self.children) == len(self.distances)
         self.index = index
 
@@ -72,11 +71,9 @@ class Tree:
                 self._collect_leaves(ch)
 
     def get_distance(self, i1: int, i2: int, topological: bool = False) -> float:
-        # Returns additive or topological distance between leaves i1 and i2.
         if i1 == i2:
             return 0.0
 
-        # Trace path from root to each leaf as (node, edge_len) from root downwards.
         def trace_path(node: TreeNode, target: int,
                        path: List[Tuple[TreeNode, float]]) -> bool:
             if node.is_leaf():
@@ -104,7 +101,6 @@ class Tree:
 
         def sum_branch(path: List[Tuple[TreeNode, float]], start: int) -> float:
             s: float = 0.0
-            # start is k-1 so we include the branch leaving LCA
             for j in range(start, len(path)):
                 s += (1.0 if topological else float(path[j][1]))
             return s
@@ -118,7 +114,6 @@ def upgma(D) -> Tree:
     if n == 0:
         raise ValueError("Empty distance matrix")
 
-    # clusters start as singletons
     clusters: List[List[int]] = [[i] for i in range(n)]
     heights: List[float] = [0.0 for _ in range(n)]
     nodes: List[TreeNode] = [TreeNode(index=i) for i in range(n)]
@@ -127,7 +122,6 @@ def upgma(D) -> Tree:
     def cluster_distance(a: int, b: int) -> float:
         total: float = 0.0
         count: int = 0
-        # average of all pair distances
         for i in clusters[a]:
             for j in clusters[b]:
                 total += float(D[i, j])
@@ -242,3 +236,4 @@ def neighbor_joining(dist) -> Tree:
     dab = float(dist[a_id, b_id])
     root = TreeNode([nodes[a_id], nodes[b_id]], [dab / 2.0, dab / 2.0], -1)
     return Tree(root)
+
