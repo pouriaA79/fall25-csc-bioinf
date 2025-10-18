@@ -24,17 +24,24 @@ jobs:
       # -----------------------------
       # 2. Install Codon
       # -----------------------------
-      - name: Install Codon compiler
+      - name: Install Codon and seq plugin
         run: |
           set -euxo pipefail
           CODON_HOME="${HOME}/.codon"
-          mkdir -p "${CODON_HOME}"
+          mkdir -p "${CODON_HOME}/lib/codon/plugins"
+
           CODON_URL="https://github.com/exaloop/codon/releases/download/v0.19.3/codon-linux-x86_64.tar.gz"
+          SEQ_URL="https://github.com/exaloop/seq/releases/download/v0.11.5/seq-linux-x86_64.tar.gz"
+
           curl -fL "$CODON_URL" -o /tmp/codon.tgz
+          curl -fL "$SEQ_URL"   -o /tmp/seq.tgz
+
           tar -xzf /tmp/codon.tgz -C "${CODON_HOME}" --strip-components=1
+          tar -xzf /tmp/seq.tgz   -C "${CODON_HOME}/lib/codon/plugins"
+
           echo "${CODON_HOME}/bin" >> "$GITHUB_PATH"
-          codon --version
-          echo "✅ Codon installed successfully."
+          "${CODON_HOME}/bin/codon" --version
+          echo "✅ Codon installed successfully"
 
       # -----------------------------
       # 3. Set up Python
