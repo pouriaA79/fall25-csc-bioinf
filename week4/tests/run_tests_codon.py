@@ -64,20 +64,16 @@ def test_pair_q(method_name: str, func, seq1: str, seq2: str):
 
 def resolve_data_folder() -> str:
     argv = sys.argv
-    # اگر کاربر مسیر داد از همون استفاده کن
     if len(argv) >= 2:
         path = argv[1]
         if os.path.isdir(path):
             return os.path.abspath(path)
 
-    # در غیر این صورت سعی کن مسیر ../data نسبت به فایل تست رو پیدا کنی
-    # (Codon __file__ نداره، پس از argv[0] استفاده می‌کنیم)
     here = os.path.dirname(argv[0])
     candidate = os.path.abspath(os.path.join(here, "..", "data"))
     if os.path.isdir(candidate):
         return candidate
 
-    # در صورت شکست، خطا بده
     print("❌ Cannot find data folder. Please pass it as argument.")
     sys.exit(1)
 
@@ -112,3 +108,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
