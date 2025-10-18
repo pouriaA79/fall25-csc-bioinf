@@ -39,8 +39,7 @@ echo "▶ Running Codon tests..."
 CODON_START=$(date +%s%3N)
 
 # اجرای مستقیم با نمایش خروجی در ترمینال
-
-timeout 1000s codon run tests/run_tests_codon.py "$DATA_PATH"
+codon run tests/run_tests_codon.py "$DATA_PATH"
 
 CODON_END=$(date +%s%3N)
 CODON_TOTAL=$((CODON_END - CODON_START))
