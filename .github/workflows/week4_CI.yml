@@ -22,7 +22,7 @@ jobs:
         uses: actions/checkout@v4
 
       # -----------------------------
-      # 2. Install Codon
+      # 2. Install Codon and seq plugin
       # -----------------------------
       - name: Install Codon and seq plugin
         run: |
@@ -44,7 +44,7 @@ jobs:
           echo "✅ Codon installed successfully"
 
       # -----------------------------
-      # 3. Set up Python
+      # 3. Set up Python 3.11
       # -----------------------------
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
@@ -52,17 +52,25 @@ jobs:
           python-version: "3.11"
 
       # -----------------------------
-      # 4. Install dependencies
+      # 4. Install dependencies and set CODON_PYTHON
       # -----------------------------
-      - name: Install Python dependencies
+      - name: Install Python dependencies and set libpython
         run: |
           set -euxo pipefail
           sudo apt-get update -y
-          pip install biopython find_libpython matplotlib
-          echo "✅ Python dependencies installed."
+          sudo apt-get install -y python3-dev
+          pip install numpy biopython matplotlib find_libpython
+
+          # پیدا کردن libpython.so برای Codon
+          LIBPY=$(find /usr/lib -name "libpython3.11.so" | head -n 1)
+          if [ -z "$LIBPY" ]; then
+            LIBPY=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('LIBDIR'))")/libpython3.11.so
+          fi
+          echo "CODON_PYTHON=$LIBPY" >> $GITHUB_ENV
+          echo "✅ Python dependencies installed. libpython found at: $LIBPY"
 
       # -----------------------------
-      # 5. Run evaluation script
+      # 5. Run evaluate.sh
       # -----------------------------
       - name: Run evaluate.sh (Python + Codon tests)
         run: |
@@ -70,13 +78,10 @@ jobs:
           cd week4
           chmod +x evaluate.sh
           bash evaluate.sh | tee evaluate_output.txt
-          # ذخیره خروجی‌ها جداگانه برای artifact
-          # grep "python" evaluate_output.txt > python_output.txt || true
-          # grep "codon" evaluate_output.txt > codon_output.txt || true
           echo "✅ Tests completed."
 
       # -----------------------------
-      # 6. Upload results as artifact
+      # 6. Upload benchmark results
       # -----------------------------
       - name: Upload benchmark results
         uses: actions/upload-artifact@v4
@@ -84,5 +89,3 @@ jobs:
           name: week4-results
           path: |
             week4/evaluate_output.txt
-            # week4/python_output.txt
-            # week4/codon_output.txt
