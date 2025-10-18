@@ -62,10 +62,10 @@ def main():
     print("--------------------------------------")
     human = read_fasta(DATA_DIR/ "MT-human.fa")
     orang = read_fasta(DATA_DIR/ "MT-orang.fa")
-    test_pair("global-mt_human", global_align, human, orang)
-    test_pair("affine-mt_human", affine_align, human, orang)
-    test_pair("semiglobal-mt_human", semi_global_align, human, orang)
-    test_pair("local-mt_human", local_align, human, orang)
+    # test_pair("global-mt_human", global_align, human, orang)
+    # test_pair("affine-mt_human", affine_align, human, orang)
+    # test_pair("semiglobal-mt_human", semi_global_align, human, orang)
+    # test_pair("local-mt_human", local_align, human, orang)
 
     qs = read_multifasta(DATA_DIR / "q1.fa")
     # print(qs)
@@ -84,5 +84,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
