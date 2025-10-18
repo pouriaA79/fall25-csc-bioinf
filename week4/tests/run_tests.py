@@ -1,4 +1,3 @@
-# tests/run_tests.py  (فقط حذف type hints از امضاها)
 import sys
 import time
 from pathlib import Path
@@ -63,13 +62,11 @@ def main():
     print("--------------------------------------")
     human = read_fasta(DATA_DIR/ "MT-human.fa")
     orang = read_fasta(DATA_DIR/ "MT-orang.fa")
-    # تست‌های اصلی
     test_pair("global-mt_human", global_align, human, orang)
     test_pair("affine-mt_human", affine_align, human, orang)
     test_pair("semiglobal-mt_human", semi_global_align, human, orang)
     test_pair("local-mt_human", local_align, human, orang)
 
-    # q1..q5 در برابر t1..t5
     qs = read_multifasta(DATA_DIR / "q1.fa")
     # print(qs)
     ts = read_multifasta(DATA_DIR / "t1.fa")
@@ -87,3 +84,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
