@@ -1,0 +1,81 @@
+name: Week 4 - Alignment Codon vs Python CI
+
+on:
+  push:
+    paths:
+      - "week4/**"
+      - ".github/workflows/week4-ci.yml"
+  pull_request:
+    paths:
+      - "week4/**"
+      - ".github/workflows/week4-ci.yml"
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # -----------------------------
+      # 1. Checkout the repo
+      # -----------------------------
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # -----------------------------
+      # 2. Install Codon
+      # -----------------------------
+      - name: Install Codon compiler
+        run: |
+          set -euxo pipefail
+          CODON_HOME="${HOME}/.codon"
+          mkdir -p "${CODON_HOME}"
+          CODON_URL="https://github.com/exaloop/codon/releases/download/v0.19.3/codon-linux-x86_64.tar.gz"
+          curl -fL "$CODON_URL" -o /tmp/codon.tgz
+          tar -xzf /tmp/codon.tgz -C "${CODON_HOME}" --strip-components=1
+          echo "${CODON_HOME}/bin" >> "$GITHUB_PATH"
+          codon --version
+          echo "✅ Codon installed successfully."
+
+      # -----------------------------
+      # 3. Set up Python
+      # -----------------------------
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # -----------------------------
+      # 4. Install dependencies
+      # -----------------------------
+      - name: Install Python dependencies
+        run: |
+          set -euxo pipefail
+          sudo apt-get update -y
+          pip install biopython find_libpython matplotlib
+          echo "✅ Python dependencies installed."
+
+      # -----------------------------
+      # 5. Run evaluation script
+      # -----------------------------
+      - name: Run evaluate.sh (Python + Codon tests)
+        run: |
+          set -euxo pipefail
+          cd week4
+          chmod +x evaluate.sh
+          bash evaluate.sh | tee evaluate_output.txt
+          # ذخیره خروجی‌ها جداگانه برای artifact
+          # grep "python" evaluate_output.txt > python_output.txt || true
+          # grep "codon" evaluate_output.txt > codon_output.txt || true
+          echo "✅ Tests completed."
+
+      # -----------------------------
+      # 6. Upload results as artifact
+      # -----------------------------
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: week4-results
+          path: |
+            week4/evaluate_output.txt
+            # week4/python_output.txt
+            # week4/codon_output.txt
