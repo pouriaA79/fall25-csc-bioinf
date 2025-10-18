@@ -50,7 +50,7 @@
 
 import numpy as np
 
-def global_align_numpy(seq1: str, seq2: str, match=1, mismatch=-1, gap=-2):
+def global_align(seq1: str, seq2: str, match=1, mismatch=-1, gap=-2):
     n, m = len(seq1), len(seq2)
     dp = np.zeros((n + 1, m + 1), dtype=np.int16)
 
@@ -73,6 +73,7 @@ def global_align_numpy(seq1: str, seq2: str, match=1, mismatch=-1, gap=-2):
         ])
 
     return "", "", int(dp[n, m])
+
 
 
 
