@@ -48,22 +48,32 @@
 #     return ''.join(ax), ''.join(ay), dp[m][n]
 
 
+import numpy as np
 
-def global_align(seq1: str, seq2: str, match=1, mismatch=-1, gap=-2):
+def global_align_numpy(seq1: str, seq2: str, match=1, mismatch=-1, gap=-2):
     n, m = len(seq1), len(seq2)
-    prev = [j * gap for j in range(m + 1)]
-    curr = [0] * (m + 1)
+    dp = np.zeros((n + 1, m + 1), dtype=np.int16)
 
+    # مقداردهی اولیه
+    dp[0, :] = np.arange(0, (m + 1) * gap, gap, dtype=np.int16)
+    dp[:, 0] = np.arange(0, (n + 1) * gap, gap, dtype=np.int16)
+
+    # تبدیل رشته‌ها به آرایه‌های numpy برای مقایسه سریع
+    s1 = np.frombuffer(seq1.encode(), dtype='S1')
+    s2 = np.frombuffer(seq2.encode(), dtype='S1')
+
+    # محاسبه‌ی ماتریس DP
     for i in range(1, n + 1):
-        curr[0] = i * gap
-        for j in range(1, m + 1):
-            diag = prev[j - 1] + (match if seq1[i - 1] == seq2[j - 1] else mismatch)
-            delete = prev[j] + gap
-            insert = curr[j - 1] + gap
-            curr[j] = max(diag, delete, insert)
-        prev, curr = curr, [0] * (m + 1)
+        match_row = (s1[i - 1] == s2).astype(np.int16)
+        match_row = np.where(match_row, match, mismatch)
+        dp[i, 1:] = np.maximum.reduce([
+            dp[i - 1, :-1] + match_row,
+            dp[i - 1, 1:] + gap,
+            dp[i, :-1] + gap
+        ])
 
-    score = prev[m]
-    return "", "", score
+    return "", "", int(dp[n, m])
+
+
 
 
