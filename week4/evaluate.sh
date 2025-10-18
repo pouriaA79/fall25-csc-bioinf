@@ -23,7 +23,7 @@ echo "▶ Running Python tests..."
 PY_START=$(date +%s%3N)
 
 # اجرای مستقیم با نمایش خروجی در ترمینال
-python3 tests/run_tests.py "$DATA_PATH"
+timeout 1200s python3 tests/run_tests.py "$DATA_PATH"
 
 PY_END=$(date +%s%3N)
 PY_TOTAL=$((PY_END - PY_START))
@@ -39,7 +39,8 @@ echo "▶ Running Codon tests..."
 CODON_START=$(date +%s%3N)
 
 # اجرای مستقیم با نمایش خروجی در ترمینال
-codon run tests/run_tests_codon.py "$DATA_PATH"
+
+timeout 1000s codon run tests/run_tests_codon.py "$DATA_PATH"
 
 CODON_END=$(date +%s%3N)
 CODON_TOTAL=$((CODON_END - CODON_START))
