@@ -1,4 +1,3 @@
-# week4/global_align.py  (pure Python)
 def align(x, y, match=3, mismatch=-3, gap=-2):
     m, n = len(x), len(y)
     dp = [[0]*(n+1) for _ in range(m+1)]
@@ -46,6 +45,7 @@ def align(x, y, match=3, mismatch=-3, gap=-2):
 
     ax.reverse(); ay.reverse()
     return ''.join(ax), ''.join(ay), dp[m][n]
+
 
 
 
