@@ -24,7 +24,7 @@ def read_fasta(path: str) -> str:
 from typing import Dict, Optional
 
 def read_multifasta(path: str) -> Dict[str, str]:
-    seqs = {}  # ✅ Codon این را می‌پذیرد و تشخیص می‌دهد که dict است
+    seqs = {}  
     current_name_opt: Optional[str] = None
     with open(path, "r") as f:
         for line in f:
@@ -108,4 +108,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
