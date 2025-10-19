@@ -1,4 +1,3 @@
-# week4/semi_global.py  (pure Python)
 NEG_INF = -10**15
 
 def align(x, y, match=3, mismatch=-3, gap_open=-5, gap_extend=-1):
@@ -86,3 +85,4 @@ def align(x, y, match=3, mismatch=-3, gap_open=-5, gap_extend=-1):
 
     ax.reverse(); ay.reverse()
     return ''.join(ax), ''.join(ay), best_score
+
