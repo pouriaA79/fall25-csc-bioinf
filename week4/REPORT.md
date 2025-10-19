@@ -151,7 +151,7 @@ Codon versions for smaller datasets matched the Python outputs exactly, confirmi
 ## **Conclusion**
 
 All four sequence alignment algorithms were successfully implemented and validated in both Python and Codon.
-Although the **CI environment** could not handle the full-scale `affine_align` test due to memory limits, all smaller cases ran smoothly, and correctness was verified locally.
+Although the **CI environment** could not handle the full-scale all four algorithms test due to memory limits for human and ornag, all smaller cases ran smoothly, and correctness was verified locally.
 
 This project demonstrated that **Codon** can significantly accelerate computationally intensive bioinformatics tasks while maintaining clarity and accuracy.
 All final scripts, benchmark results, and CI configurations are available in the repository, and the workflow automatically validates both performance and correctness.
