@@ -125,10 +125,10 @@ The final benchmark results (Python version run locally for large datasets):
 ```
 Method              Language    Runtime
 --------------------------------------
-global-mt_human      python       177151ms   score=33399
-affine-mt_human      python       584392ms   score=33272
-semi-global-mt_human python       955278ms   score=37612
-local-mt_human       python       166181ms   score=35246
+global-mt_human      python       172468ms   score=33399
+affine-mt_human      python       876690ms   score=33272
+semi-global-mt_human python       1844617ms   score=37612
+local-mt_human       python       191967ms   score=35246
 ```
 
 Codon versions for smaller datasets matched the Python outputs exactly, confirming correctness, but large-scale runs were omitted in CI due to memory constraints.
