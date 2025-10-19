@@ -10,7 +10,7 @@ sys.path.insert(0, str(SRC_DIR))
 from global_align import align as global_align
 from local import align as local_align
 from semi_global import align as semi_global_align
-from affine import affine_align as affine_align
+from affine import align as affine_align
 
 def read_fasta(path):
     seq = []
@@ -84,6 +84,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
