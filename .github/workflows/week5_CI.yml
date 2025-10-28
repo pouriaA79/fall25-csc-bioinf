@@ -49,22 +49,23 @@ jobs:
           jupyter nbconvert --to notebook --execute week5/week5.ipynb \
             --output week5/week5.out.ipynb \
             --ExecutePreprocessor.timeout=10800
-      - name: Upload week5 artifacts
+      - name: Upload artifacts (results)
         uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: week5-outputs
-          if-no-files-found: warn
+          name: week5-results
           path: |
             week5/week5.out.ipynb
-            week5/data/chr10.fa*
-            week5/data/*.bam
-            week5/data/*.bai
-            week5/data/*.vcf.gz
-            week5/data/*.vcf.gz.tbi
-            week5/data/isec/**
-            week5/data/*stats*.txt
-            week5/data/illumina.flagstat.txt
-            week5/data/pacbio.flagstat.txt
-            week5/data/starallele_support.tsv
-            week5/data/igv_snapshots/**
-      
+            week5/data/*.vcfstats.txt
+            week5/data/illumina.cyp2c.filtered.vcf.gz
+            week5/data/illumina.cyp2c.filtered.vcf.gz.tbi
+            week5/data/pacbio.cyp2c.filtered.vcf.gz
+            week5/data/pacbio.cyp2c.filtered.vcf.gz.tbi
+            week5/data/illumina.phased.vcf.gz
+            week5/data/illumina.phased.vcf.gz.tbi
+            week5/data/pacbio.phased.vcf.gz
+            week5/data/pacbio.phased.vcf.gz.tbi
+            week5/data/isec/**/*
+            week5/data/discordant_sites.tsv
+            week5/data/star_allele_helper.tsv
+            week5/data/igv_snapshots/**/*
