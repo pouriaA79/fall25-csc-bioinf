@@ -30,6 +30,8 @@ jobs:
             curl bzip2 unzip tabix \
             minimap2 samtools bcftools \
             git make gcc g++ zlib1g-dev \
+            zlib1g-dev libbz2-dev liblzma-dev libcurl4-openssl-dev \
+            autoconf automake libtool pkg-config \
             xvfb openjdk-17-jre
           minimap2 --version
           samtools --version | head -n1
