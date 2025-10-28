@@ -2,7 +2,13 @@ name: week5
 
 on:
   push:
+    paths:
+      - "week5/**"
+      - ".github/workflows/week5-ci.yml"
   pull_request:
+    paths:
+      - "week5/**"
+      - ".github/workflows/week5-ci.yml"
   workflow_dispatch:
 
 jobs:
