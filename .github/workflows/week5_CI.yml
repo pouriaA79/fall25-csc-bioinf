@@ -49,3 +49,22 @@ jobs:
           jupyter nbconvert --to notebook --execute week5/week5.ipynb \
             --output week5/week5.out.ipynb \
             --ExecutePreprocessor.timeout=10800
+      - name: Upload week5 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: week5-outputs
+          if-no-files-found: warn
+          path: |
+            week5/week5.out.ipynb
+            week5/data/chr10.fa*
+            week5/data/*.bam
+            week5/data/*.bai
+            week5/data/*.vcf.gz
+            week5/data/*.vcf.gz.tbi
+            week5/data/isec/**
+            week5/data/*stats*.txt
+            week5/data/illumina.flagstat.txt
+            week5/data/pacbio.flagstat.txt
+            week5/data/starallele_support.tsv
+            week5/data/igv_snapshots/**
+      
