@@ -1,0 +1,42 @@
+name: week5
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  run-week5:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install system tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            curl bzip2 unzip tabix \
+            minimap2 samtools bcftools \
+            git make gcc g++ zlib1g-dev \
+            xvfb openjdk-17-jre
+          minimap2 --version
+          samtools --version | head -n1
+          bcftools --version | head -n1
+          java -version
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install jupyter nbconvert nbclient
+
+      - name: Execute notebook (Stages 1–6)
+        run: |
+          jupyter nbconvert --to notebook --execute week5/week5.ipynb \
+            --output week5/week5.out.ipynb \
+            --ExecutePreprocessor.timeout=10800
