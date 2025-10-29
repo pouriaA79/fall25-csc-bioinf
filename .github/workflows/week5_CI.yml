@@ -26,23 +26,19 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install system deps (minimap2/bcftools/samtools/tabix/bedtools)
-        env:
-          DEBIAN_FRONTEND: noninteractive
+      - name: Install system deps (bio tools + Jupyter)
+        shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            minimap2 bcftools samtools tabix bedtools curl gzip ca-certificates
+          sudo apt-get install -y \
+            bcftools samtools tabix bedtools minimap2 curl
           python -m pip install --upgrade pip
           pip install jupyter nbconvert
-          # sanity check
-          minimap2 --version
-          samtools --version | head -n1
-          bcftools --version | head -n1
 
-      # (اختیاری) نرمالایز کردن نوت‌بوک
+      # (اختیاری) اگر پیام MissingIDFieldWarning اذیت می‌کند، فعال کن
       # - name: Normalize notebook IDs (optional)
+      #   shell: bash
       #   run: |
       #     python - <<'PY'
       #     import nbformat as nbf
@@ -51,41 +47,62 @@ jobs:
       #     nbf.write(nb, p)
       #     PY
 
-      # 3) اجرای نوت‌بوک و ساخت خروجی
+      # 3) اجرای نوت‌بوک (خروجی را week5/week5.out.ipynb بساز)
       - name: Execute notebook
-        run: |
-          jupyter nbconvert --to notebook --execute week5/week5.ipynb \
-            --output week5.out --output-dir week5
-
-      # 4) اطمینان از وجود vcfstats
-      - name: Ensure vcfstats exist
         shell: bash
         run: |
           set -euo pipefail
+          jupyter nbconvert \
+            --to notebook --execute week5/week5.ipynb \
+            --ExecutePreprocessor.timeout=0 \
+            --output week5.out --output-dir week5
+
+      # 4) اگر به هر دلیل vcfstats ساخته نشده باشد، اینجا بساز (در صورت وجود data/)
+      - name: Ensure vcfstats exist
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -d week5/data ]]; then
+            echo "[INFO] week5/data not present; skipping vcfstats."
+            exit 0
+          fi
           cd week5/data
+
           ILL="illumina.cyp2c.filtered.vcf.gz"
           PAC="pacbio.cyp2c.filtered.vcf.gz"
+
           if [[ -s "$ILL" && -s "$PAC" ]]; then
-            [[ -s "$ILL.tbi" ]] || tabix -f -p vcf "$ILL"
-            [[ -s "$PAC.tbi" ]] || tabix -f -p vcf "$PAC"
+            [[ -s "$ILL.tbi" ]] || tabix -f -p vcf "$ILL" || true
+            [[ -s "$PAC.tbi" ]] || tabix -f -p vcf "$PAC" || true
+
             [[ -s illumina.vcfstats.txt ]] || bcftools stats "$ILL" > illumina.vcfstats.txt || true
             [[ -s pacbio.vcfstats.txt  ]] || bcftools stats "$PAC"  > pacbio.vcfstats.txt  || true
+          else
+            echo "[INFO] VCFs not found, skipping bcftools stats."
           fi
 
-      # 5) نمایش خروجی‌ها برای دیباگ
+      # 5) لیست خروجی‌ها برای دیباگ (همیشه اجرا شود)
       - name: Tree outputs
+        if: always()
+        shell: bash
         run: |
+          set -euo pipefail
           echo "== Find key files =="
           ls -lah week5/week5.out.ipynb || true
-          ls -lah week5/data/*.vcf.gz*   || true
-          ls -lah week5/data/*.vcfstats.txt || true
-          ls -lah week5/data/isec/*/*    || true
-          ls -lah week5/data/discordant_sites.tsv || true
-          ls -lah week5/data/star_allele_helper.tsv || true
-          ls -lah week5/data/igv_snapshots || true
-          find week5/data/igv_snapshots -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -maxdepth 3 -print || true
+          if [[ -d week5/data ]]; then
+            ls -lah week5/data/*.vcf.gz*                 || true
+            ls -lah week5/data/*.vcfstats.txt            || true
+            ls -lah week5/data/isec/*/*                  || true
+            ls -lah week5/data/discordant_sites.tsv      || true
+            ls -lah week5/data/star_allele_helper.tsv    || true
+            ls -lah week5/data/igv_snapshots             || true
+            find week5/data/igv_snapshots -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -maxdepth 3 -print || true
+          else
+            echo "[INFO] week5/data not present; skipping tree."
+          fi
 
-      # 6) آپلود آرتیفکت‌ها
+      # 6) آپلود آرتیفکت‌ها (اگر نبود warn بده)
       - name: Upload week5 artifacts
         uses: actions/upload-artifact@v4
         with:
