@@ -20,7 +20,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2) Python + CLI tools (minimap2 در استیج‌های اول نوت‌بوک، IGV نیاز به Java 21 و xvfb)
+      # 2) Python + ابزارها (Java 21 برای IGV ضروری است)
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -31,11 +31,13 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y minimap2 bcftools samtools tabix bedtools curl unzip xvfb openjdk-21-jre-headless
+          sudo apt-get install -y \
+            minimap2 bcftools samtools tabix bedtools \
+            curl unzip xvfb openjdk-21-jre-headless
           python -m pip install --upgrade pip
           pip install jupyter nbconvert
 
-      # 3) Run notebook -> week5/week5.out.ipynb
+      # 3) اجرای نوت‌بوک (خروجی: week5/week5.out.ipynb)
       - name: Execute notebook
         shell: bash
         run: |
@@ -44,16 +46,16 @@ jobs:
             --ExecutePreprocessor.timeout=0 \
             --output week5.out --output-dir week5
 
-      # 4) Ensure vcfstats (هم‌خوان با هر دو ساختار data/)
+      # 4) ساخت vcfstats اگر VCFها حاضرند (پوشش هر دو ساختار مسیر)
       - name: Ensure vcfstats exist
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -d week5/week5/data ]]; then
-            datadir="week5/week5/data"
-          elif [[ -d week5/data ]]; then
+          if [[ -d week5/data ]]; then
             datadir="week5/data"
+          elif [[ -d week5/week5/data ]]; then
+            datadir="week5/week5/data"
           else
             echo "[INFO] no data dir found; skipping vcfstats."
             exit 0
@@ -73,7 +75,7 @@ jobs:
             echo "[WARN] VCFs not found; skipping stats."
           fi
 
-      # 5) IGV snapshots (headless) + fallback when sites empty
+      # 5) IGV snapshots با Java 21 + xvfb (اگر فایل‌های لازم موجود باشند)
       - name: Make IGV snapshots (headless)
         if: always()
         shell: bash
@@ -81,11 +83,10 @@ jobs:
           JAVA_TOOL_OPTIONS: "-Djava.awt.headless=true"
         run: |
           set -euo pipefail
-          # pick data dir
-          if [[ -d week5/week5/data ]]; then
-            datadir="week5/week5/data"
-          elif [[ -d week5/data ]]; then
+          if [[ -d week5/data ]]; then
             datadir="week5/data"
+          elif [[ -d week5/week5/data ]]; then
+            datadir="week5/week5/data"
           else
             echo "[INFO] no data dir found; skipping IGV snapshots."
             exit 0
@@ -98,25 +99,31 @@ jobs:
           BAM2="pacbio.chr10.sorted.bam"
 
           if [[ ! -s "$REF" || ! -s "$BAM1" || ! -s "$BAM2" || ! -s "$BAM1.bai" || ! -s "$BAM2.bai" ]]; then
-            echo "[INFO] Required REF/BAMs not found; skipping snapshots."
+            echo "[INFO] Required files for IGV not found; skipping snapshots."
             exit 0
           fi
 
-          # download IGV 2.19.6
+          # دانلود IGV 2.19.6
           IGV_VER="2.19.6"
           IGV_URL="https://data.broadinstitute.org/igv/projects/downloads/2.19/IGV_${IGV_VER}.zip"
           echo "[INFO] downloading IGV ${IGV_VER} ..."
           curl -fL -o igv.zip "$IGV_URL"
           unzip -q igv.zip
           IGV_DIR="$(pwd)/IGV_${IGV_VER}"
-          test -x "$IGV_DIR/igv.sh" || { echo "[ERR] igv.sh not found"; exit 1; }
+          test -x "$IGV_DIR/igv.sh" || { echo "[ERR] igv.sh not found in $IGV_DIR"; exit 1; }
+
+          # جاوا 21 فقط برای این استپ
+          export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+          export PATH="$JAVA_HOME/bin:$PATH"
+          echo "[INFO] Using Java:"
+          java -version
 
           BED=".cyp2c.sorted.bed"
           SITES="discordant_sites.tsv"
           SNAPDIR="$(pwd)/igv_snapshots"
           mkdir -p "$SNAPDIR"
 
-          # If SITES missing OR has only header, create fallback positions
+          # اگر discordant_sites.tsv تهی/فقط هدر بود، fallback بساز
           if [[ -s "$SITES" ]]; then
             data_lines=$(awk 'NR>1 && $1!=""{c++} END{print c+0}' "$SITES")
           else
@@ -128,7 +135,7 @@ jobs:
             printf "chr10\t94938700\tCYP2C9\nchr10\t95036850\tCYP2C8\nchr10\t94762750\tCYP2C19\n" >> "$SITES"
           fi
 
-          # Build IGV batch file
+          # ساخت batch بدون heredoc (حساس به YAML)
           BATCH="$(pwd)/igv.batch"
           : > "$BATCH"
           printf "new\n"                                   >> "$BATCH"
@@ -150,15 +157,12 @@ jobs:
                }' "$SITES" >> "$BATCH"
           echo "exit" >> "$BATCH"
 
-          echo "[INFO] Running IGV batch with Java:"
-          java -version || true
-          # IGV نیاز به Java 21 دارد؛ runner پیش‌فرض دارد. Xvfb برای headless GUI
+          echo "[INFO] Running IGV batch..."
           xvfb-run -a bash -lc "\"$IGV_DIR/igv.sh\" -b \"$BATCH\""
           echo "[INFO] Snapshots:"
           ls -lah "$SNAPDIR" || true
-          find "$SNAPDIR" -maxdepth 1 -type f -name "*.png" -print || true
 
-      # 6) Show tree only under week5
+      # 6) چاپ درخت و خروجی‌های کلیدی (فقط زیر week5)
       - name: Tree outputs
         if: always()
         shell: bash
@@ -169,6 +173,16 @@ jobs:
           echo "== Key outputs =="
           ls -lah week5/week5.out.ipynb || true
 
+          echo "== Check week5/data =="
+          ls -lah week5/data || true
+          ls -lah week5/data/*.vcf.gz* || true
+          ls -lah week5/data/*.vcfstats.txt || true
+          ls -lah week5/data/isec/*/* || true
+          ls -lah week5/data/discordant_sites.tsv || true
+          ls -lah week5/data/star_allele_helper.tsv || true
+          ls -lah week5/data/igv_snapshots || true
+          find week5/data/igv_snapshots -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -maxdepth 3 -print || true
+
           echo "== Check week5/week5/data =="
           ls -lah week5/week5/data || true
           ls -lah week5/week5/data/*.vcf.gz* || true
@@ -177,9 +191,9 @@ jobs:
           ls -lah week5/week5/data/discordant_sites.tsv || true
           ls -lah week5/week5/data/star_allele_helper.tsv || true
           ls -lah week5/week5/data/igv_snapshots || true
-          find week5/week5/data/igv_snapshots -type f -name "*.png" -maxdepth 1 -print || true
+          find week5/week5/data/igv_snapshots -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -maxdepth 3 -print || true
 
-      # 7) Upload artifacts (شامل اسنپ‌شات‌ها)
+      # 7) آپلود آرتیفکت‌های اصلی (فقط مسیرهای week5)
       - name: Upload week5 artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -188,13 +202,45 @@ jobs:
           if-no-files-found: warn
           path: |
             week5/week5.out.ipynb
+            week5/data/*.vcfstats.txt
+            week5/data/illumina.cyp2c.filtered.vcf.gz
+            week5/data/illumina.cyp2c.filtered.vcf.gz.tbi
+            week5/data/pacbio.cyp2c.filtered.vcf.gz
+            week5/data/pacbio.cyp2c.filtered.vcf.gz.tbi
+            week5/data/illumina.phased.vcf.gz
+            week5/data/illumina.phased.vcf.gz.tbi
+            week5/data/pacbio.phased.vcf.gz
+            week5/data/pacbio.phased.vcf.gz.tbi
+            week5/data/isec/**/*.vcf.gz
+            week5/data/isec/**/*.vcf.gz.tbi
+            week5/data/discordant_sites.tsv
+            week5/data/star_allele_helper.tsv
+            week5/data/igv_snapshots/**/*.png
+            week5/data/igv_snapshots/**/*.jpg
+            week5/data/igv_snapshots/**/*.jpeg
             week5/week5/data/*.vcfstats.txt
             week5/week5/data/illumina.cyp2c.filtered.vcf.gz
             week5/week5/data/illumina.cyp2c.filtered.vcf.gz.tbi
             week5/week5/data/pacbio.cyp2c.filtered.vcf.gz
             week5/week5/data/pacbio.cyp2c.filtered.vcf.gz.tbi
+            week5/week5/data/illumina.phased.vcf.gz
+            week5/week5/data/illumina.phased.vcf.gz.tbi
+            week5/week5/data/pacbio.phased.vcf.gz
+            week5/week5/data/pacbio.phased.vcf.gz.tbi
             week5/week5/data/isec/**/*.vcf.gz
             week5/week5/data/isec/**/*.vcf.gz.tbi
             week5/week5/data/discordant_sites.tsv
             week5/week5/data/star_allele_helper.tsv
             week5/week5/data/igv_snapshots/**/*.png
+            week5/week5/data/igv_snapshots/**/*.jpg
+            week5/week5/data/igv_snapshots/**/*.jpeg
+
+      # 8) (اختیاری) کل فولدر week5 برای دیباگ
+      - name: Upload full week5 folder
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: week5-folder
+          if-no-files-found: warn
+          path: |
+            week5/**
