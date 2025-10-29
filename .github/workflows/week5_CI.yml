@@ -16,77 +16,96 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1) Checkout
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 2) Python + ابزارهای لازم
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install system deps (bio tools + Jupyter)
-        shell: bash
+      - name: Install system deps (bcftools/samtools/tabix/bedtools/minimap2)
         run: |
-          set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y \
-            bcftools samtools tabix bedtools minimap2 curl
+          sudo apt-get install -y bcftools samtools tabix bedtools minimap2 curl gzip
           python -m pip install --upgrade pip
-          pip install jupyter nbconvert
+          pip install jupyter nbconvert nbformat
 
-      - name: Execute notebook
+      # 3) پیش‌ساخت دایرکتوری‌های احتمالی (هر دو حالت)
+      - name: Prepare directories
         shell: bash
         run: |
           set -euo pipefail
-          # برای شفافیت، pwd و محتوا را قبل از اجرا چاپ کن
-          echo "PWD before:"; pwd
-          ls -lah
-          # اجرای نوت‌بوک؛ خروجی به week5/week5.out.ipynb
-          jupyter nbconvert \
-            --to notebook --execute week5/week5.ipynb \
-            --ExecutePreprocessor.timeout=0 \
+          mkdir -p week5/data
+          mkdir -p week5/week5/data
+
+      # 4) اجرای نوت‌بوک و ساخت خروجی با نام و مسیر مشخص
+      - name: Execute notebook
+        run: |
+          jupyter nbconvert --to notebook --execute week5/week5.ipynb \
+            --ExecutePreprocessor.timeout=7200 \
             --output week5.out --output-dir week5
 
+      # 5) اگر به هر دلیل vcfstats ساخته نشده باشد، اینجا بساز (هر دو مسیر پشتیبانی شود)
       - name: Ensure vcfstats exist
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          if [[ ! -d week5/data ]]; then
-            echo "[INFO] week5/data not present; skipping vcfstats."
+          if [[ -d week5/data ]]; then
+            datadir="week5/data"
+          elif [[ -d week5/week5/data ]]; then
+            datadir="week5/week5/data"
+          else
+            echo "[INFO] no data dir found, skipping vcfstats."
             exit 0
           fi
-          cd week5/data
+
+          cd "$datadir"
+
           ILL="illumina.cyp2c.filtered.vcf.gz"
           PAC="pacbio.cyp2c.filtered.vcf.gz"
           if [[ -s "$ILL" && -s "$PAC" ]]; then
             [[ -s "$ILL.tbi" ]] || tabix -f -p vcf "$ILL" || true
             [[ -s "$PAC.tbi" ]] || tabix -f -p vcf "$PAC" || true
+
             [[ -s illumina.vcfstats.txt ]] || bcftools stats "$ILL" > illumina.vcfstats.txt || true
             [[ -s pacbio.vcfstats.txt  ]] || bcftools stats "$PAC"  > pacbio.vcfstats.txt  || true
           else
             echo "[INFO] VCFs not found, skipping bcftools stats."
           fi
 
-      # 🔎 چاپ درخت کامل برای عیب‌یابی (تغییر ۱)
-      - name: Tree (full)
+      # 6) لیست خروجی‌ها (برای دیباگ لاگ) — هر دو مسیر
+      - name: Tree outputs
         if: always()
         shell: bash
         run: |
           set -euo pipefail
           echo "== TREE from repo root =="
-          find . -maxdepth 3 -type d -name "week5" -print
-          find week5 -maxdepth 3 -type f -print || true
+          find . -maxdepth 3 -type d -name "data" -print || true
           echo "== Key globs =="
           ls -lah week5/week5.out.ipynb || true
-          ls -lah week5/data/*.vcf.gz* || true
-          ls -lah week5/data/*.vcfstats.txt || true
-          ls -lah week5/data/isec/*/* || true
+          ls -lah week5/data/* || true
+          ls -lah week5/week5/data/* || true
+
+          echo "== Detailed globs =="
+          ls -lah week5/data/*.vcf.gz*            || true
+          ls -lah week5/data/*.vcfstats.txt       || true
+          ls -lah week5/data/isec/*/*             || true
           ls -lah week5/data/discordant_sites.tsv || true
           ls -lah week5/data/star_allele_helper.tsv || true
           find week5/data/igv_snapshots -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -maxdepth 3 -print || true
 
-      # آپلود گزینشی (مثل قبل)
+          ls -lah week5/week5/data/*.vcf.gz*            || true
+          ls -lah week5/week5/data/*.vcfstats.txt       || true
+          ls -lah week5/week5/data/isec/*/*             || true
+          ls -lah week5/week5/data/discordant_sites.tsv || true
+          ls -lah week5/week5/data/star_allele_helper.tsv || true
+          find week5/week5/data/igv_snapshots -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -maxdepth 3 -print || true
+
+      # 7) آپلود آرتیفکت‌های منتخب (هر دو مسیر)
       - name: Upload week5 artifacts (selective)
         uses: actions/upload-artifact@v4
         with:
@@ -94,6 +113,7 @@ jobs:
           if-no-files-found: warn
           path: |
             week5/week5.out.ipynb
+
             week5/data/*.vcfstats.txt
             week5/data/illumina.cyp2c.filtered.vcf.gz
             week5/data/illumina.cyp2c.filtered.vcf.gz.tbi
@@ -111,12 +131,29 @@ jobs:
             week5/data/igv_snapshots/**/*.jpg
             week5/data/igv_snapshots/**/*.jpeg
 
-      # ✅ آپلود catch-all از کل پوشه‌ی week5 (تغییر ۲)
+            week5/week5/data/*.vcfstats.txt
+            week5/week5/data/illumina.cyp2c.filtered.vcf.gz
+            week5/week5/data/illumina.cyp2c.filtered.vcf.gz.tbi
+            week5/week5/data/pacbio.cyp2c.filtered.vcf.gz
+            week5/week5/data/pacbio.cyp2c.filtered.vcf.gz.tbi
+            week5/week5/data/illumina.phased.vcf.gz
+            week5/week5/data/illumina.phased.vcf.gz.tbi
+            week5/week5/data/pacbio.phased.vcf.gz
+            week5/week5/data/pacbio.phased.vcf.gz.tbi
+            week5/week5/data/isec/**/*.vcf.gz
+            week5/week5/data/isec/**/*.vcf.gz.tbi
+            week5/week5/data/discordant_sites.tsv
+            week5/week5/data/star_allele_helper.tsv
+            week5/week5/data/igv_snapshots/**/*.png
+            week5/week5/data/igv_snapshots/**/*.jpg
+            week5/week5/data/igv_snapshots/**/*.jpeg
+
+      # 8) آپلود کل فولدر week5 برای اطمینان (catch-all)
       - name: Upload week5 folder (catch-all)
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: week5-folder
-          if-no-files-found: warn
+          if-no-files-found: ignore
           path: |
             week5/**
