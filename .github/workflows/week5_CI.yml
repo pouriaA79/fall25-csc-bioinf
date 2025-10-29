@@ -20,24 +20,36 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2) Python + CLI tools
+      # 2) Python 3.11
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
+      # 3) System deps (Java 21 + Xvfb + bio tools)
       - name: Install system deps
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
-          # ❗ جاوای کامل (غیر-headless) + Xvfb + ابزارها
-          sudo apt-get install -y openjdk-21-jre xvfb curl unzip \
-                                  minimap2 bcftools samtools tabix bedtools
+          # Java 21 (non-headless برای AWT) + Xvfb + X libs لازم برای Swing
+          sudo apt-get install -y \
+            openjdk-21-jre xvfb libxrender1 libxtst6 libxi6 \
+            curl unzip \
+            minimap2 bcftools samtools tabix bedtools
+
+          # اطمینان از استفاده Java 21
+          if [[ -x /usr/lib/jvm/java-21-openjdk-amd64/bin/java ]]; then
+            sudo update-alternatives --set java /usr/lib/jvm/java-21-openjdk-amd64/bin/java || true
+          fi
+          echo "[INFO] java at: $(command -v java)"
+          java -version
+
+          # Python deps
           python -m pip install --upgrade pip
           pip install jupyter nbconvert
 
-      # 3) Execute the notebook -> writes week5/week5.out.ipynb
+      # 4) اجرای نوت‌بوک -> week5/week5.out.ipynb
       - name: Execute notebook
         shell: bash
         run: |
@@ -46,7 +58,7 @@ jobs:
             --ExecutePreprocessor.timeout=0 \
             --output week5.out --output-dir week5
 
-      # 4) Ensure vcfstats exist
+      # 5) ساخت vcfstats (از هر کدوم که وجود داشت)
       - name: Ensure vcfstats exist
         if: always()
         shell: bash
@@ -75,13 +87,14 @@ jobs:
             echo "[WARN] VCFs not found; skipping stats."
           fi
 
-      # 5) IGV snapshots under Xvfb (با JRE کامل)
-      - name: Make IGV snapshots (Xvfb)
+      # 6) ساخت IGV snapshots با Java 21 + Xvfb (headful مجازی)
+      - name: Make IGV snapshots
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          # انتخاب دیتادیر
+
+          # پیدا کردن مسیر داده
           if [[ -d week5/week5/data ]]; then
             datadir="week5/week5/data"
           elif [[ -d week5/data ]]; then
@@ -93,6 +106,7 @@ jobs:
           echo "[INFO] datadir=$datadir"
           cd "$datadir"
 
+          # فایل‌های لازم
           REF="chr10.fa"
           BAM1="illumina.chr10.sorted.bam"
           BAM2="pacbio.chr10.sorted.bam"
@@ -101,10 +115,13 @@ jobs:
             exit 0
           fi
 
-          # اطمینان از JRE کامل و Java 21
+          # Java 21
+          export JAVA_HOME="/usr/lib/jvm/java-21-openjdk-amd64"
+          export PATH="$JAVA_HOME/bin:$PATH"
+          echo "[INFO] Java version:"
           java -version
-          which java
 
+          # IGV دانلود و آماده‌سازی
           IGV_VER="2.19.6"
           IGV_URL="https://data.broadinstitute.org/igv/projects/downloads/2.19/IGV_${IGV_VER}.zip"
           echo "[INFO] downloading IGV ${IGV_VER} ..."
@@ -113,16 +130,17 @@ jobs:
           IGV_DIR="$(pwd)/IGV_${IGV_VER}"
           test -x "$IGV_DIR/igv.sh" || { echo "[ERR] igv.sh not found"; exit 1; }
 
-          # نقاط برای اسنپ‌شات‌ها
+          # نقاط بازدید
           SITES="discordant_sites.tsv"
           SNAPDIR="$(pwd)/igv_snapshots"
           mkdir -p "$SNAPDIR"
           if [[ ! -s "$SITES" ]]; then
+            # اگر فایل آماده نیست 3 نقطه‌ی نمایشی می‌سازیم
             printf "chrom\tpos\tgene\n" > "$SITES"
             printf "chr10\t94938700\tCYP2C9\nchr10\t95036850\tCYP2C8\nchr10\t94762750\tCYP2C19\n" >> "$SITES"
           fi
 
-          # ساخت batch
+          # ساخت batch IGV (با echo/printf برای جلوگیری از مشکلات YAML)
           BATCH="$(pwd)/igv.batch"
           {
             echo "new"
@@ -145,15 +163,27 @@ jobs:
                }' "$SITES" >> "$BATCH"
           echo "exit" >> "$BATCH"
 
-          # اجرای IGV زیر Xvfb با تنظیم screen
-          echo "[INFO] Java version:"; java -version
-          xvfb-run -a -s "-screen 0 1600x1200x24 -nolisten tcp -ac" \
-            "$IGV_DIR/igv.sh" -b "$BATCH"
+          # اجرای IGV زیر Xvfb
+          unset JAVA_TOOL_OPTIONS || true  # بعضی runnerها headless می‌گذارند
+          Xvfb :99 -screen 0 1600x1200x24 -nolisten tcp -ac &
+          XVFB_PID=$!
+          export DISPLAY=:99
+          sleep 2
+
+          echo "[INFO] Running IGV batch (DISPLAY=$DISPLAY) ..."
+          set +e
+          "$IGV_DIR/igv.sh" -b "$BATCH"
+          RC=$?
+          set -e
+
+          kill $XVFB_PID || true
 
           echo "[INFO] Final snapshots:"
           ls -lah "$SNAPDIR" || true
 
-      # 6) Tree + key files (week5 scope)
+          exit $RC
+
+      # 7) نشان دادن خروجی‌ها (فقط زیر week5)
       - name: Tree outputs
         if: always()
         shell: bash
@@ -165,10 +195,15 @@ jobs:
           ls -lah week5/week5.out.ipynb || true
           echo "== Check week5/week5/data =="
           ls -lah week5/week5/data || true
+          ls -lah week5/week5/data/*.vcf.gz* || true
+          ls -lah week5/week5/data/*.vcfstats.txt || true
+          ls -lah week5/week5/data/isec/*/* || true
+          ls -lah week5/week5/data/discordant_sites.tsv || true
+          ls -lah week5/week5/data/star_allele_helper.tsv || true
           ls -lah week5/week5/data/igv_snapshots || true
-          find week5/week5/data/igv_snapshots -type f -maxdepth 3 -print || true
+          find week5/week5/data/igv_snapshots -maxdepth 3 -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -print || true
 
-      # 7) Upload artifacts (includes snapshots)
+      # 8) Artifact اصلی—نتایج ضروری + اسنپ‌شات‌ها
       - name: Upload week5 artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -177,15 +212,20 @@ jobs:
           if-no-files-found: warn
           path: |
             week5/week5.out.ipynb
-            week5/week5/data/illumina.vcfstats.txt
-            week5/week5/data/pacbio.vcfstats.txt
+            week5/week5/data/*.vcfstats.txt
+            week5/week5/data/illumina.cyp2c.filtered.vcf.gz
+            week5/week5/data/illumina.cyp2c.filtered.vcf.gz.tbi
+            week5/week5/data/pacbio.cyp2c.filtered.vcf.gz
+            week5/week5/data/pacbio.cyp2c.filtered.vcf.gz.tbi
             week5/week5/data/isec/**/*.vcf.gz
             week5/week5/data/isec/**/*.vcf.gz.tbi
             week5/week5/data/discordant_sites.tsv
             week5/week5/data/star_allele_helper.tsv
-            week5/week5/data/igv_snapshots/**/*
+            week5/week5/data/igv_snapshots/**/*.png
+            week5/week5/data/igv_snapshots/**/*.jpg
+            week5/week5/data/igv_snapshots/**/*.jpeg
 
-      # 8) (Optional) Upload whole week5 folder for debugging
+      # 9) Artifact کامل فولدر (برای دیباگ—اختیاری)
       - name: Upload full week5 folder
         if: always()
         uses: actions/upload-artifact@v4
