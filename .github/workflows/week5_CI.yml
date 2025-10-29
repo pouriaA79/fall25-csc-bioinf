@@ -29,7 +29,8 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y minimap2 bcftools samtools tabix bedtools curl unzip
+          # ابزارهای پایه + Java 21 برای IGV + Xvfb برای اجرا بدون نمایشگر
+          sudo apt-get install -y minimap2 bcftools samtools tabix bedtools curl unzip xvfb openjdk-21-jre-headless
           python -m pip install --upgrade pip
           pip install jupyter nbconvert
 
@@ -72,6 +73,10 @@ jobs:
       - name: Make IGV snapshots (headless)
         if: always()
         shell: bash
+        env:
+          # برای اطمینان از استفاده IGV از جاوای درست
+          JAVA_HOME: /usr/lib/jvm/java-21-openjdk-amd64
+          PATH: /usr/lib/jvm/java-21-openjdk-amd64/bin:${{ env.PATH }}
         run: |
           set -euo pipefail
           if [[ -d week5/data ]]; then
@@ -94,8 +99,6 @@ jobs:
             exit 0
           fi
 
-          sudo apt-get update
-          sudo apt-get install -y openjdk-17-jre xvfb
           IGV_VER="2.19.6"
           IGV_URL="https://data.broadinstitute.org/igv/projects/downloads/2.19/IGV_${IGV_VER}.zip"
           echo "[INFO] downloading IGV ${IGV_VER} ..."
@@ -122,7 +125,6 @@ jobs:
             fi
           fi
 
-          # به جای heredoc، با printf فایل batch می‌سازیم تا YAML error نگیریم
           BATCH="$(pwd)/igv.batch"
           {
             printf "new\n"
@@ -134,7 +136,6 @@ jobs:
             printf "preference SAM.SHOW_CENTER_LINE true\n"
           } > "$BATCH"
 
-          # افزودن اسنپ‌شات‌ها بر اساس لیست SITES
           awk 'BEGIN{OFS="\t"} NR>1 {
                  chrom=$1; pos=$2; gene=$3;
                  start=pos-50; if(start<1) start=1; end=pos+50;
@@ -146,8 +147,9 @@ jobs:
                }' "$SITES" >> "$BATCH"
           echo "exit" >> "$BATCH"
 
-          echo "[INFO] Running IGV batch..."
-          xvfb-run -a bash -lc "\"$IGV_DIR/igv.sh\" -b \"$BATCH\""
+          echo "[INFO] Running IGV batch with Java at: $(java -version 2>&1 | head -n1)"
+          # -Djava.util.prefs.userRoot برای جلوگیری از warning/permission
+          xvfb-run -a bash -lc "\"$IGV_DIR/igv.sh\" -Djava.util.prefs.userRoot=$(pwd) -b \"$BATCH\""
           echo "[INFO] Snapshots created:"
           ls -lah "$SNAPDIR" || true
 
