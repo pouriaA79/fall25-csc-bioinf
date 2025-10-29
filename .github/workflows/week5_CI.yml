@@ -77,10 +77,8 @@ jobs:
           JAVA_HOME: /usr/lib/jvm/java-21-openjdk-amd64
         run: |
           set -euo pipefail
-          # Java 21 را فقط به PATH اضافه کن
           export PATH="$JAVA_HOME/bin:$PATH"
-
-          # انتخاب دایرکتوری دیتای صحیح (week5/data یا week5/week5/data)
+          # pick data dir
           if [[ -d week5/data ]]; then
             datadir="week5/data"
           elif [[ -d week5/week5/data ]]; then
@@ -95,14 +93,10 @@ jobs:
           REF="chr10.fa"
           BAM1="illumina.chr10.sorted.bam"
           BAM2="pacbio.chr10.sorted.bam"
-
           if [[ ! -s "$REF" || ! -s "$BAM1" || ! -s "$BAM2" || ! -s "$BAM1.bai" || ! -s "$BAM2.bai" ]]; then
             echo "[INFO] Required files for IGV not found; skipping snapshots."
             exit 0
           fi
-
-          command -v curl >/dev/null 2>&1 || { echo "[ERR] curl missing"; exit 1; }
-          command -v unzip >/dev/null 2>&1 || { echo "[ERR] unzip missing"; exit 1; }
 
           IGV_VER="2.19.6"
           IGV_URL="https://data.broadinstitute.org/igv/projects/downloads/2.19/IGV_${IGV_VER}.zip"
@@ -117,7 +111,7 @@ jobs:
           SNAPDIR="$(pwd)/igv_snapshots"
           mkdir -p "$SNAPDIR"
 
-          # اگر لیست سایت‌ها نبود، چند موقعیت بساز
+          # if no sites, synthesize a few demo positions
           if [[ ! -s "$SITES" ]]; then
             echo -e "chrom\tpos\tgene" > "$SITES"
             if [[ -s isec/shared/0000.vcf.gz && -s "$BED" ]]; then
@@ -131,7 +125,7 @@ jobs:
             fi
           fi
 
-          # ساخت batch IGV (بدون heredoc تا YAML نشکند)
+          # build batch file (no heredoc to avoid YAML quoting issues)
           BATCH="$(pwd)/igv.batch"
           {
             printf "new\n"
@@ -154,17 +148,16 @@ jobs:
                }' "$SITES" >> "$BATCH"
           echo "exit" >> "$BATCH"
 
-          # ⚠️ نکته مهم: فلگ‌های -D باید به JVM برسند، نه به IGV.
-          # از JAVA_TOOL_OPTIONS استفاده می‌کنیم تا IGV آنها را به JVM پاس بدهد.
+          # مهم: فلگ‌های JVM را با JAVA_TOOL_OPTIONS بده، نه به igv.sh
           export JAVA_TOOL_OPTIONS="-Djava.awt.headless=true -Djava.util.prefs.userRoot=$(pwd)"
 
           echo "[INFO] Running IGV batch with: $(java -version 2>&1 | head -n1)"
+          # فقط -b استفاده کن؛ --headless نگذار
           xvfb-run -a -s "-screen 0 1920x1080x24" \
-            "$IGV_DIR/igv.sh" --headless -b "$BATCH"
+            "$IGV_DIR/igv.sh" -b "$BATCH"
 
           echo "[INFO] Snapshots created:"
           ls -lah "$SNAPDIR" || true
-
 
       - name: Tree outputs
         if: always()
