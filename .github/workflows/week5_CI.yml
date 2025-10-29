@@ -71,7 +71,7 @@ jobs:
             echo "[WARN] VCFs not found; skipping stats."
           fi
 
-      - name: Make IGV snapshots (headless via Xvfb)
+      - name: Make IGV snapshots (Xvfb manual DISPLAY)
         if: always()
         shell: bash
         run: |
@@ -96,31 +96,32 @@ jobs:
             exit 0
           fi
 
-          # اطمینان از Java 21
+          # Java 21 + وابستگی‌های X (برای اجتناب از HeadlessException)
           sudo apt-get update
-          sudo apt-get install -y openjdk-21-jre-headless xvfb curl unzip
+          sudo apt-get install -y openjdk-21-jre-headless xvfb curl unzip \
+                                  libxrender1 libxtst6 libxi6
           export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
           export PATH="$JAVA_HOME/bin:$PATH"
 
-          # --- نکته‌ی مهم: Headless را کاملاً خاموش کن ---
+          # هرگونه حالت headless را کاملاً خاموش کن
           unset JAVA_TOOL_OPTIONS || true
           unset _JAVA_OPTIONS || true
+          export GDK_BACKEND=x11
 
           IGV_VER="2.19.6"
           IGV_URL="https://data.broadinstitute.org/igv/projects/downloads/2.19/IGV_${IGV_VER}.zip"
           echo "[INFO] downloading IGV ${IGV_VER} ..."
           curl -fL -o igv.zip "$IGV_URL"
-          unzip -q igv.zip
+          unzip -q -o igv.zip
           IGV_DIR="$(pwd)/IGV_${IGV_VER}"
-          test -x "$IGV_DIR/igv.sh" || { echo "[ERR] igv.sh not found in $IGV_DIR"; exit 1; }
+          test -x "$IGV_DIR/igv.sh" || { echo "[ERR] igv.sh not found"; exit 1; }
 
           echo "[INFO] Java version:"; java -version
 
+          # نقاط برای اسنپ‌شات‌ها
           SITES="discordant_sites.tsv"
           SNAPDIR="$(pwd)/igv_snapshots"
           mkdir -p "$SNAPDIR"
-
-          # اگر سایت نداریم، چند نقطه پیش‌فرض بساز
           if [[ ! -s "$SITES" ]]; then
             printf "chrom\tpos\tgene\n" > "$SITES"
             printf "chr10\t94938700\tCYP2C9\nchr10\t95036850\tCYP2C8\nchr10\t94762750\tCYP2C19\n" >> "$SITES"
@@ -149,30 +150,25 @@ jobs:
                }' "$SITES" >> "$BATCH"
           echo "exit" >> "$BATCH"
 
-          echo "[INFO] Running IGV batch under Xvfb..."
-          xvfb-run -a -s "-screen 0 1600x1200x24" bash -lc "\"$IGV_DIR/igv.sh\" -b \"$BATCH\""
+          # --- اینجا خودمان Xvfb را بالا می‌آوریم و DISPLAY را ست می‌کنیم ---
+          export DISPLAY=":99"
+          Xvfb "$DISPLAY" -screen 0 1600x1200x24 -nolisten tcp -ac &
+          xvfb_pid=$!
+          # کمی صبر برای بالا آمدن Xvfb
+          for i in {1..10}; do
+            xdpyinfo -display "$DISPLAY" >/dev/null 2>&1 && break || sleep 0.5
+          done
 
-          echo "[INFO] Final snapshots:"; ls -lah "$SNAPDIR" || true
+          echo "[INFO] Running IGV batch (DISPLAY=$DISPLAY) ..."
+          # بدون نقل‌قول‌های اضافی، مستقیم igv.sh را اجرا کن
+          "$IGV_DIR/igv.sh" -b "$BATCH" || { echo "[ERR] IGV failed"; kill $xvfb_pid || true; exit 1; }
 
-      - name: Tree outputs
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "== TREE under week5 =="
-          find week5 -maxdepth 3 -type d -print | sort
-          echo "== Key outputs =="
-          ls -lah week5/week5.out.ipynb || true
+          # بستن Xvfb
+          kill $xvfb_pid || true
+          wait $xvfb_pid 2>/dev/null || true
 
-          echo "== Check week5/week5/data =="
-          ls -lah week5/week5/data || true
-          ls -lah week5/week5/data/*.vcf.gz* || true
-          ls -lah week5/week5/data/*.vcfstats.txt || true
-          ls -lah week5/week5/data/isec/*/* || true
-          ls -lah week5/week5/data/discordant_sites.tsv || true
-          ls -lah week5/week5/data/star_allele_helper.tsv || true
-          ls -lah week5/week5/data/igv_snapshots || true
-          find week5/week5/data/igv_snapshots -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -maxdepth 3 -print || true
+          echo "[INFO] Final snapshots:"
+          ls -lah "$SNAPDIR" || true
 
       - name: Upload week5 artifacts
         if: always()
