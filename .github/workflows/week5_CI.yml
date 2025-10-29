@@ -4,11 +4,11 @@ on:
   push:
     paths:
       - "week5/**"
-      - ".github/workflows/week5-ci.yml"
+      - ".github/workflows/week5_CI.yml"
   pull_request:
     paths:
       - "week5/**"
-      - ".github/workflows/week5-ci.yml"
+      - ".github/workflows/week5_CI.yml"
   workflow_dispatch:
 
 jobs:
@@ -121,27 +121,26 @@ jobs:
           fi
 
           BATCH="$(pwd)/igv.batch"
-          cat > "$BATCH" <<EOF
-new
-genome $(pwd)/$REF
-snapshotDirectory $SNAPDIR
-load $(pwd)/$BAM1
-load $(pwd)/$BAM2
-preference SAM.SHOW_COVERAGE true
-preference SAM.SHOW_CENTER_LINE true
-EOF
+          : > "$BATCH"
+          printf "new\n" >> "$BATCH"
+          printf "genome %s/%s\n" "$(pwd)" "$REF" >> "$BATCH"
+          printf "snapshotDirectory %s\n" "$SNAPDIR" >> "$BATCH"
+          printf "load %s/%s\n" "$(pwd)" "$BAM1" >> "$BATCH"
+          printf "load %s/%s\n" "$(pwd)" "$BAM2" >> "$BATCH"
+          printf "preference SAM.SHOW_COVERAGE true\n" >> "$BATCH"
+          printf "preference SAM.SHOW_CENTER_LINE true\n" >> "$BATCH"
 
           awk 'BEGIN{OFS="\t"} NR>1 {
                  chrom=$1; pos=$2; gene=$3;
                  start=pos-50; if(start<1) start=1; end=pos+50;
-                 fname=gene"_"chrom"_"pos".png";
-                 print "goto "chrom":"start"-"end;
+                 fname=sprintf("%s_%s_%s.png", gene, chrom, pos);
+                 printf "goto %s:%d-%d\n", chrom, start, end;
                  print "sort base";
                  print "collapse";
-                 print "snapshot "fname;
+                 printf "snapshot %s\n", fname;
                }' "$SITES" >> "$BATCH"
 
-          echo "exit" >> "$BATCH"
+          printf "exit\n" >> "$BATCH"
 
           echo "[INFO] Running IGV batch..."
           xvfb-run -a bash -lc '"$IGV_DIR/igv.sh" -b "$BATCH"'
