@@ -71,11 +71,9 @@ jobs:
             echo "[WARN] VCFs not found; skipping stats."
           fi
 
-      - name: Make IGV snapshots (headless, coverage-filtered + fallback)
+      - name: Make IGV snapshots (headless via Xvfb)
         if: always()
         shell: bash
-        env:
-          JAVA_TOOL_OPTIONS: "-Djava.awt.headless=true"
         run: |
           set -euo pipefail
           # انتخاب دیتادیر
@@ -93,15 +91,20 @@ jobs:
           REF="chr10.fa"
           BAM1="illumina.chr10.sorted.bam"
           BAM2="pacbio.chr10.sorted.bam"
-
           if [[ ! -s "$REF" || ! -s "$BAM1" || ! -s "$BAM2" || ! -s "$BAM1.bai" || ! -s "$BAM2.bai" ]]; then
             echo "[INFO] Required files for IGV not found; skipping snapshots."
             exit 0
           fi
 
-          # Java 21 + ابزارها باید قبلاً نصب شده باشند (xvfb و openjdk-21-jre-headless)
+          # اطمینان از Java 21
+          sudo apt-get update
+          sudo apt-get install -y openjdk-21-jre-headless xvfb curl unzip
           export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
           export PATH="$JAVA_HOME/bin:$PATH"
+
+          # --- نکته‌ی مهم: Headless را کاملاً خاموش کن ---
+          unset JAVA_TOOL_OPTIONS || true
+          unset _JAVA_OPTIONS || true
 
           IGV_VER="2.19.6"
           IGV_URL="https://data.broadinstitute.org/igv/projects/downloads/2.19/IGV_${IGV_VER}.zip"
@@ -113,36 +116,14 @@ jobs:
 
           echo "[INFO] Java version:"; java -version
 
-          BED=".cyp2c.sorted.bed"
-          SITES_IN="discordant_sites.tsv"
+          SITES="discordant_sites.tsv"
           SNAPDIR="$(pwd)/igv_snapshots"
           mkdir -p "$SNAPDIR"
 
-          # اگر سایت نداریم، چند نقطهٔ پیش‌فرض بساز
-          if [[ ! -s "$SITES_IN" ]]; then
-            printf "chrom\tpos\tgene\n" > "$SITES_IN"
-            printf "chr10\t94938700\tCYP2C9\nchr10\t95036850\tCYP2C8\nchr10\t94762750\tCYP2C19\n" >> "$SITES_IN"
-          fi
-
-          # فیلتر کاوریج ±250bp در هر دو BAM
-          SITES_FLT="$(pwd)/sites_for_igv.tsv"
-          printf "chrom\tpos\tgene\n" > "$SITES_FLT"
-          awk 'NR>1 && $1!="" && $2~/^[0-9]+$/ {print $1,$2,$3}' OFS="\t" "$SITES_IN" | \
-          while IFS=$'\t' read -r chrom pos gene; do
-            start=$((pos-250)); (( start<1 )) && start=1
-            end=$((pos+250))
-            region="${chrom}:${start}-${end}"
-            c1=$(samtools view -c "$BAM1" "$region" 2>/dev/null || echo 0)
-            c2=$(samtools view -c "$BAM2" "$region" 2>/dev/null || echo 0)
-            if [[ "$c1" -gt 0 && "$c2" -gt 0 ]]; then
-              printf "%s\t%s\t%s\n" "$chrom" "$pos" "$gene" >> "$SITES_FLT"
-            fi
-          done
-
-          # اگر بعد از فیلتر خالی شد، از ورودی اصلی استفاده کن
-          if [[ $(awk 'END{print NR}' "$SITES_FLT") -le 1 ]]; then
-            echo "[WARN] no covered sites in both BAMs; using fallback sites."
-            cp "$SITES_IN" "$SITES_FLT"
+          # اگر سایت نداریم، چند نقطه پیش‌فرض بساز
+          if [[ ! -s "$SITES" ]]; then
+            printf "chrom\tpos\tgene\n" > "$SITES"
+            printf "chr10\t94938700\tCYP2C9\nchr10\t95036850\tCYP2C8\nchr10\t94762750\tCYP2C19\n" >> "$SITES"
           fi
 
           # ساخت batch
@@ -165,49 +146,13 @@ jobs:
                  print "sort base";
                  print "collapse";
                  print "snapshot "fname;
-               }' "$SITES_FLT" >> "$BATCH"
+               }' "$SITES" >> "$BATCH"
           echo "exit" >> "$BATCH"
 
           echo "[INFO] Running IGV batch under Xvfb..."
-          # حتماً با xvfb-run اجرا کن تا HeadlessException رفع شود
-          xvfb-run -a -s "-screen 0 1600x1200x24" bash -lc "\"$IGV_DIR/igv.sh\" -b \"$BATCH\" || true"
-
-          echo "[INFO] Snapshots after first run:"; ls -lah "$SNAPDIR" || true
-
-          # اگر هنوز هیچ اسنپ‌شاتی نیست، fallback high-coverage بدون sort|head (با awk)
-          if ! ls "$SNAPDIR"/*.{png,jpg,jpeg} >/dev/null 2>&1; then
-            echo "[WARN] No snapshots created. Trying high-coverage fallback..."
-            if [[ -s "$BED" ]]; then
-              read -r bedChrom bedStart bedEnd bedGene < "$BED"
-              region="${bedChrom}:${bedStart}-${bedEnd}"
-              top=$(samtools depth -r "$region" "$BAM1" 2>/dev/null | \
-                    awk '($3>max){max=$3;c=$1;p=$2} END{if(max>0) printf "%s\t%s\t%d\n",c,p,max}')
-              if [[ -n "$top" ]]; then
-                tchrom=$(echo "$top" | awk '{print $1}')
-                tpos=$(echo "$top"   | awk '{print $2}')
-                tgene=${bedGene:-Fallback}
-                FALLBATCH="$(pwd)/igv_fallback.batch"
-                {
-                  echo "new"
-                  echo "genome $(pwd)/$REF"
-                  echo "snapshotDirectory $SNAPDIR"
-                  echo "load $(pwd)/$BAM1"
-                  echo "load $(pwd)/$BAM2"
-                  echo "preference SAM.SHOW_COVERAGE true"
-                  echo "preference SAM.SHOW_CENTER_LINE true"
-                  echo "goto ${tchrom}:$((tpos-250))-$((tpos+250))"
-                  echo "sort base"
-                  echo "collapse"
-                  echo "snapshot ${tgene}_${tchrom}_${tpos}.png"
-                  echo "exit"
-                } > "$FALLBATCH"
-                xvfb-run -a -s "-screen 0 1600x1200x24" bash -lc "\"$IGV_DIR/igv.sh\" -b \"$FALLBATCH\" || true"
-              fi
-            fi
-          fi
+          xvfb-run -a -s "-screen 0 1600x1200x24" bash -lc "\"$IGV_DIR/igv.sh\" -b \"$BATCH\""
 
           echo "[INFO] Final snapshots:"; ls -lah "$SNAPDIR" || true
-
 
       - name: Tree outputs
         if: always()
