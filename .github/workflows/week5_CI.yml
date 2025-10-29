@@ -71,7 +71,7 @@ jobs:
             echo "[WARN] VCFs not found; skipping stats."
           fi
 
-      - name: Make IGV snapshots (headless, coverage-filtered)
+      - name: Make IGV snapshots (headless, coverage-filtered + fallback)
         if: always()
         shell: bash
         env:
@@ -106,30 +106,29 @@ jobs:
           IGV_DIR="$(pwd)/IGV_${IGV_VER}"
           test -x "$IGV_DIR/igv.sh" || { echo "[ERR] igv.sh not found in $IGV_DIR"; exit 1; }
 
-          # Use Java 21 for IGV
+          # Java 21
           export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
           export PATH="$JAVA_HOME/bin:$PATH"
-          echo "[INFO] Java version:"
-          java -version
+          echo "[INFO] Java version:"; java -version
 
           BED=".cyp2c.sorted.bed"
           SITES_IN="discordant_sites.tsv"
           SNAPDIR="$(pwd)/igv_snapshots"
           mkdir -p "$SNAPDIR"
 
-          # prepare sites (fallback if needed)
+          # اگر discordant_sites نبود، سه نقطهٔ پیش‌فرض
           if [[ ! -s "$SITES_IN" ]]; then
             printf "chrom\tpos\tgene\n" > "$SITES_IN"
             printf "chr10\t94938700\tCYP2C9\nchr10\t95036850\tCYP2C8\nchr10\t94762750\tCYP2C19\n" >> "$SITES_IN"
           fi
 
-          # filter sites to those with coverage in BOTH BAMs
+          # فیلتر با پنجرهٔ بزرگ‌تر ±250bp در هر دو BAM
           SITES_FLT="$(pwd)/sites_for_igv.tsv"
           printf "chrom\tpos\tgene\n" > "$SITES_FLT"
           awk 'NR>1 && $1!="" && $2~/^[0-9]+$/ {print $1,$2,$3}' OFS="\t" "$SITES_IN" | \
           while IFS=$'\t' read -r chrom pos gene; do
-            start=$((pos-10)); if (( start < 1 )); then start=1; fi
-            end=$((pos+10))
+            start=$((pos-250)); if (( start < 1 )); then start=1; fi
+            end=$((pos+250))
             region="${chrom}:${start}-${end}"
             c1=$(samtools view -c "$BAM1" "$region" || echo 0)
             c2=$(samtools view -c "$BAM2" "$region" || echo 0)
@@ -138,14 +137,13 @@ jobs:
             fi
           done
 
-          # اگر هیچ سایتی کاور نداشت، حداقل یکی را بدون فیلتر امتحان کن
-          lines=$(awk 'END{print NR}' "$SITES_FLT")
-          if [[ "$lines" -le 1 ]]; then
-            echo "[WARN] no covered sites in both BAMs; using fallback."
+          # اگر بعد از فیلتر هیچ‌چیز نماند، از ورودی اصلی استفاده کن
+          if [[ $(awk 'END{print NR}' "$SITES_FLT") -le 1 ]]; then
+            echo "[WARN] no covered sites in both BAMs; using fallback sites."
             cp "$SITES_IN" "$SITES_FLT"
           fi
 
-          # build batch file
+          # ساخت batch
           BATCH="$(pwd)/igv.batch"
           : > "$BATCH"
           printf "new\n"                                   >> "$BATCH"
@@ -158,7 +156,7 @@ jobs:
 
           awk 'BEGIN{OFS="\t"} NR>1 {
                  chrom=$1; pos=$2; gene=$3;
-                 start=pos-50; if(start<1) start=1; end=pos+50;
+                 start=pos-250; if(start<1) start=1; end=pos+250;
                  fname=gene"_"chrom"_"pos".png";
                  print "goto "chrom":"start"-"end;
                  print "sort base";
@@ -168,14 +166,45 @@ jobs:
           echo "exit" >> "$BATCH"
 
           echo "[INFO] Running IGV batch..."
-          # IGV log usually goes into ~/.igv or working dir; force it here:
-          export IGV_LOG_DIR="$(pwd)/.java/.userPrefs"
-          mkdir -p "$IGV_LOG_DIR"
           xvfb-run -a bash -lc "\"$IGV_DIR/igv.sh\" -b \"$BATCH\" || true"
-          echo "[INFO] Snapshots:"
+
+          echo "[INFO] Snapshots after first run:"; ls -lah "$SNAPDIR" || true
+
+          # اگر هنوز هیچ اسنپ‌شاتی نیست، یک locus پُرکاوریج را خودکار پیدا کن و اسنپ‌شات بگیر
+          if ! ls "$SNAPDIR"/*.{png,jpg,jpeg} >/dev/null 2>&1; then
+            echo "[WARN] No snapshots created. Trying high-coverage fallback..."
+            # از BED، اولین ژن را بردار و عمق را روی BAM1 حساب کن، max-pos را بگیر
+            if [[ -s "$BED" ]]; then
+              read -r bedChrom bedStart bedEnd bedGene < "$BED"
+              region="${bedChrom}:${bedStart}-${bedEnd}"
+              top=$(samtools depth -r "$region" "$BAM1" 2>/dev/null | sort -k3,3nr | head -n1)
+              if [[ -n "$top" ]]; then
+                tchrom=$(echo "$top" | awk '{print $1}')
+                tpos=$(echo "$top"   | awk '{print $2}')
+                tgene=${bedGene:-Fallback}
+                FALLBATCH="$(pwd)/igv_fallback.batch"
+                {
+                  echo "new"
+                  echo "genome $(pwd)/$REF"
+                  echo "snapshotDirectory $SNAPDIR"
+                  echo "load $(pwd)/$BAM1"
+                  echo "load $(pwd)/$BAM2"
+                  echo "preference SAM.SHOW_COVERAGE true"
+                  echo "preference SAM.SHOW_CENTER_LINE true"
+                  echo "goto ${tchrom}:$((tpos-250))-$((tpos+250))"
+                  echo "sort base"
+                  echo "collapse"
+                  echo "snapshot ${tgene}_${tchrom}_${tpos}.png"
+                  echo "exit"
+                } > "$FALLBATCH"
+                xvfb-run -a bash -lc "\"$IGV_DIR/igv.sh\" -b \"$FALLBATCH\" || true"
+              fi
+            fi
+          fi
+
+          echo "[INFO] Final snapshots:"
           ls -lah "$SNAPDIR" || true
-          echo "[INFO] IGV log (if any):"
-          find . -maxdepth 3 -type f -name "igv.log" -print -exec tail -n +1 {} \; || true
+
 
       - name: Tree outputs
         if: always()
