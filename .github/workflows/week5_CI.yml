@@ -33,7 +33,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install jupyter nbconvert nbformat
 
-      # 3) پیش‌ساخت دایرکتوری‌های احتمالی (هر دو حالت)
+      # 3) پیش‌ساخت دایرکتوری‌های احتمالی (هر دو حالت نوت‌بوک)
       - name: Prepare directories
         shell: bash
         run: |
@@ -41,14 +41,14 @@ jobs:
           mkdir -p week5/data
           mkdir -p week5/week5/data
 
-      # 4) اجرای نوت‌بوک و ساخت خروجی با نام و مسیر مشخص
+      # 4) اجرای نوت‌بوک
       - name: Execute notebook
         run: |
           jupyter nbconvert --to notebook --execute week5/week5.ipynb \
             --ExecutePreprocessor.timeout=7200 \
             --output week5.out --output-dir week5
 
-      # 5) اگر به هر دلیل vcfstats ساخته نشده باشد، اینجا بساز (هر دو مسیر پشتیبانی شود)
+      # 5) اگر vcfstats نبود، بساز (هر دو مسیر)
       - name: Ensure vcfstats exist
         if: always()
         shell: bash
@@ -64,48 +64,53 @@ jobs:
           fi
 
           cd "$datadir"
-
           ILL="illumina.cyp2c.filtered.vcf.gz"
           PAC="pacbio.cyp2c.filtered.vcf.gz"
+
           if [[ -s "$ILL" && -s "$PAC" ]]; then
             [[ -s "$ILL.tbi" ]] || tabix -f -p vcf "$ILL" || true
             [[ -s "$PAC.tbi" ]] || tabix -f -p vcf "$PAC" || true
-
             [[ -s illumina.vcfstats.txt ]] || bcftools stats "$ILL" > illumina.vcfstats.txt || true
             [[ -s pacbio.vcfstats.txt  ]] || bcftools stats "$PAC"  > pacbio.vcfstats.txt  || true
           else
             echo "[INFO] VCFs not found, skipping bcftools stats."
           fi
 
-      # 6) لیست خروجی‌ها (برای دیباگ لاگ) — هر دو مسیر
+      # 6) لیست خروجی‌ها فقط زیر week5/ و بدون خطا برای igv_snapshots
       - name: Tree outputs
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          echo "== TREE from repo root =="
-          find . -maxdepth 3 -type d -name "data" -print || true
+          echo "== TREE under week5 =="
+          find week5 -maxdepth 3 -type d -name "data" -print || true
+
           echo "== Key globs =="
           ls -lah week5/week5.out.ipynb || true
-          ls -lah week5/data/* || true
-          ls -lah week5/week5/data/* || true
 
-          echo "== Detailed globs =="
-          ls -lah week5/data/*.vcf.gz*            || true
-          ls -lah week5/data/*.vcfstats.txt       || true
-          ls -lah week5/data/isec/*/*             || true
-          ls -lah week5/data/discordant_sites.tsv || true
-          ls -lah week5/data/star_allele_helper.tsv || true
-          find week5/data/igv_snapshots -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -maxdepth 3 -print || true
+          echo "== week5/data globs =="
+          ls -lah week5/data/* 2>/dev/null || true
+          ls -lah week5/data/*.vcf.gz* 2>/dev/null || true
+          ls -lah week5/data/*.vcfstats.txt 2>/dev/null || true
+          ls -lah week5/data/isec/*/* 2>/dev/null || true
+          ls -lah week5/data/discordant_sites.tsv 2>/dev/null || true
+          ls -lah week5/data/star_allele_helper.tsv 2>/dev/null || true
+          if [[ -d week5/data/igv_snapshots ]]; then
+            find week5/data/igv_snapshots -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -maxdepth 3 -print
+          fi
 
-          ls -lah week5/week5/data/*.vcf.gz*            || true
-          ls -lah week5/week5/data/*.vcfstats.txt       || true
-          ls -lah week5/week5/data/isec/*/*             || true
-          ls -lah week5/week5/data/discordant_sites.tsv || true
-          ls -lah week5/week5/data/star_allele_helper.tsv || true
-          find week5/week5/data/igv_snapshots -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -maxdepth 3 -print || true
+          echo "== week5/week5/data globs =="
+          ls -lah week5/week5/data/* 2>/dev/null || true
+          ls -lah week5/week5/data/*.vcf.gz* 2>/dev/null || true
+          ls -lah week5/week5/data/*.vcfstats.txt 2>/dev/null || true
+          ls -lah week5/week5/data/isec/*/* 2>/dev/null || true
+          ls -lah week5/week5/data/discordant_sites.tsv 2>/dev/null || true
+          ls -lah week5/week5/data/star_allele_helper.tsv 2>/dev/null || true
+          if [[ -d week5/week5/data/igv_snapshots ]]; then
+            find week5/week5/data/igv_snapshots -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -maxdepth 3 -print
+          fi
 
-      # 7) آپلود آرتیفکت‌های منتخب (هر دو مسیر)
+      # 7) آرتیفکت‌های مهم (هر دو مسیر) — فقط از week5/
       - name: Upload week5 artifacts (selective)
         uses: actions/upload-artifact@v4
         with:
@@ -148,7 +153,7 @@ jobs:
             week5/week5/data/igv_snapshots/**/*.jpg
             week5/week5/data/igv_snapshots/**/*.jpeg
 
-      # 8) آپلود کل فولدر week5 برای اطمینان (catch-all)
+      # 8) آپلود فولدر week5 به‌صورت catch-all (فقط زیر week5/)
       - name: Upload week5 folder (catch-all)
         if: always()
         uses: actions/upload-artifact@v4
