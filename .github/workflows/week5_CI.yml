@@ -20,50 +20,49 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2) Python + ابزارهای لازم
+      # 2) Python + CLI tools we need
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install system deps (bcftools/samtools/tabix/bedtools/minimap2)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y bcftools samtools tabix bedtools minimap2 curl gzip
-          python -m pip install --upgrade pip
-          pip install jupyter nbconvert nbformat
-
-      # 3) پیش‌ساخت دایرکتوری‌های احتمالی (هر دو حالت نوت‌بوک)
-      - name: Prepare directories
+      - name: Install system deps (minimap2/bcftools/samtools/tabix/bedtools)
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p week5/data
-          mkdir -p week5/week5/data
+          sudo apt-get update
+          sudo apt-get install -y minimap2 bcftools samtools tabix bedtools curl unzip
+          python -m pip install --upgrade pip
+          pip install jupyter nbconvert
 
-      # 4) اجرای نوت‌بوک
+      # 3) Execute the notebook -> write output next to it as week5/week5.out.ipynb
       - name: Execute notebook
+        shell: bash
         run: |
+          set -euo pipefail
           jupyter nbconvert --to notebook --execute week5/week5.ipynb \
-            --ExecutePreprocessor.timeout=7200 \
+            --ExecutePreprocessor.timeout=0 \
             --output week5.out --output-dir week5
 
-      # 5) اگر vcfstats نبود، بساز (هر دو مسیر)
+      # 4) Ensure VCF stats (handles both week5/data and week5/week5/data)
       - name: Ensure vcfstats exist
         if: always()
         shell: bash
         run: |
           set -euo pipefail
+
+          # Resolve data dir
           if [[ -d week5/data ]]; then
             datadir="week5/data"
           elif [[ -d week5/week5/data ]]; then
             datadir="week5/week5/data"
           else
-            echo "[INFO] no data dir found, skipping vcfstats."
+            echo "[INFO] no data dir found; skipping vcfstats."
             exit 0
           fi
-
+          echo "[INFO] datadir=$datadir"
           cd "$datadir"
+
           ILL="illumina.cyp2c.filtered.vcf.gz"
           PAC="pacbio.cyp2c.filtered.vcf.gz"
 
@@ -73,52 +72,135 @@ jobs:
             [[ -s illumina.vcfstats.txt ]] || bcftools stats "$ILL" > illumina.vcfstats.txt || true
             [[ -s pacbio.vcfstats.txt  ]] || bcftools stats "$PAC"  > pacbio.vcfstats.txt  || true
           else
-            echo "[INFO] VCFs not found, skipping bcftools stats."
+            echo "[WARN] VCFs not found; skipping stats."
           fi
 
-      # 6) لیست خروجی‌ها فقط زیر week5/ و بدون خطا برای igv_snapshots
+      # 5) Make IGV snapshots headlessly (only if BAMs & REF are present)
+      - name: Make IGV snapshots (headless)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Resolve data dir
+          if [[ -d week5/data ]]; then
+            datadir="week5/data"
+          elif [[ -d week5/week5/data ]]; then
+            datadir="week5/week5/data"
+          else
+            echo "[INFO] no data dir found; skipping IGV snapshots."
+            exit 0
+          fi
+          echo "[INFO] datadir=$datadir"
+          cd "$datadir"
+
+          REF="chr10.fa"
+          BAM1="illumina.chr10.sorted.bam"
+          BAM2="pacbio.chr10.sorted.bam"
+
+          if [[ ! -s "$REF" || ! -s "$BAM1" || ! -s "$BAM2" || ! -s "$BAM1.bai" || ! -s "$BAM2.bai" ]]; then
+            echo "[INFO] Required files for IGV not found; skipping snapshots."
+            exit 0
+          fi
+
+          # Install Java + xvfb and get IGV
+          sudo apt-get update
+          sudo apt-get install -y openjdk-17-jre xvfb
+          IGV_VER="2.16.2"
+          IGV_URL="https://data.broadinstitute.org/igv/projects/downloads/2.16/IGV_Linux_${IGV_VER}.zip"
+          curl -L -o igv.zip "$IGV_URL"
+          unzip -q igv.zip
+          IGV_DIR="$(pwd)/IGV_Linux_${IGV_VER}"
+
+          BED=".cyp2c.sorted.bed"
+          SITES="discordant_sites.tsv"
+          SNAPDIR="$(pwd)/igv_snapshots"
+          mkdir -p "$SNAPDIR"
+
+          # If we don't have discordant sites, synthesize a few from shared or fallback
+          if [[ ! -s "$SITES" ]]; then
+            echo -e "chrom\tpos\tgene" > "$SITES"
+            if [[ -s isec/shared/0000.vcf.gz && -s "$BED" ]]; then
+              while read -r chrom start end gene; do
+                region="${chrom}:${start}-${end}"
+                bcftools view -r "$region" -H isec/shared/0000.vcf.gz \
+                | awk -v g="$gene" 'NR<=3 {print $1"\t"$2"\t"g}' >> "$SITES"
+              done < "$BED"
+            else
+              printf "chr10\t94938700\tCYP2C9\nchr10\t95036850\tCYP2C8\nchr10\t94762750\tCYP2C19\n" >> "$SITES"
+            fi
+          fi
+
+          # Build IGV batch file
+          BATCH="$(pwd)/igv.batch"
+          cat > "$BATCH" <<EOF
+new
+genome $(pwd)/$REF
+snapshotDirectory $SNAPDIR
+load $(pwd)/$BAM1
+load $(pwd)/$BAM2
+preference SAM.SHOW_COVERAGE true
+preference SAM.SHOW_CENTER_LINE true
+EOF
+
+          awk 'BEGIN{OFS="\t"} NR>1 { 
+                 chrom=$1; pos=$2; gene=$3;
+                 start=pos-50; if(start<1) start=1; end=pos+50;
+                 fname=gene"_"chrom"_"pos".png";
+                 print "goto "chrom":"start"-"end;
+                 print "sort base";
+                 print "collapse";
+                 print "snapshot "fname;
+               }' "$SITES" >> "$BATCH"
+
+          echo "exit" >> "$BATCH"
+
+          # Run IGV headless
+          echo "[INFO] Running IGV batch..."
+          xvfb-run -a bash -lc '"$IGV_DIR/igv.sh" -b "$BATCH"'
+          echo "[INFO] Snapshots created:"
+          ls -lah "$SNAPDIR" || true
+
+      # 6) Debug tree & key files (show both possible layouts)
       - name: Tree outputs
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          echo "== TREE under week5 =="
-          find week5 -maxdepth 3 -type d -name "data" -print || true
-
-          echo "== Key globs =="
+          echo "== TREE from repo root =="
+          find . -maxdepth 3 -type d -name data | sort
+          echo "== Key outputs =="
           ls -lah week5/week5.out.ipynb || true
 
-          echo "== week5/data globs =="
-          ls -lah week5/data/* 2>/dev/null || true
-          ls -lah week5/data/*.vcf.gz* 2>/dev/null || true
-          ls -lah week5/data/*.vcfstats.txt 2>/dev/null || true
-          ls -lah week5/data/isec/*/* 2>/dev/null || true
-          ls -lah week5/data/discordant_sites.tsv 2>/dev/null || true
-          ls -lah week5/data/star_allele_helper.tsv 2>/dev/null || true
-          if [[ -d week5/data/igv_snapshots ]]; then
-            find week5/data/igv_snapshots -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -maxdepth 3 -print
-          fi
+          echo "== Check week5/data =="
+          ls -lah week5/data || true
+          ls -lah week5/data/*.vcf.gz* || true
+          ls -lah week5/data/*.vcfstats.txt || true
+          ls -lah week5/data/isec/*/* || true
+          ls -lah week5/data/discordant_sites.tsv || true
+          ls -lah week5/data/star_allele_helper.tsv || true
+          ls -lah week5/data/igv_snapshots || true
+          find week5/data/igv_snapshots -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -maxdepth 3 -print || true
 
-          echo "== week5/week5/data globs =="
-          ls -lah week5/week5/data/* 2>/dev/null || true
-          ls -lah week5/week5/data/*.vcf.gz* 2>/dev/null || true
-          ls -lah week5/week5/data/*.vcfstats.txt 2>/dev/null || true
-          ls -lah week5/week5/data/isec/*/* 2>/dev/null || true
-          ls -lah week5/week5/data/discordant_sites.tsv 2>/dev/null || true
-          ls -lah week5/week5/data/star_allele_helper.tsv 2>/dev/null || true
-          if [[ -d week5/week5/data/igv_snapshots ]]; then
-            find week5/week5/data/igv_snapshots -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -maxdepth 3 -print
-          fi
+          echo "== Check week5/week5/data =="
+          ls -lah week5/week5/data || true
+          ls -lah week5/week5/data/*.vcf.gz* || true
+          ls -lah week5/week5/data/*.vcfstats.txt || true
+          ls -lah week5/week5/data/isec/*/* || true
+          ls -lah week5/week5/data/discordant_sites.tsv || true
+          ls -lah week5/week5/data/star_allele_helper.tsv || true
+          ls -lah week5/week5/data/igv_snapshots || true
+          find week5/week5/data/igv_snapshots -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -maxdepth 3 -print || true
 
-      # 7) آرتیفکت‌های مهم (هر دو مسیر) — فقط از week5/
-      - name: Upload week5 artifacts (selective)
+      # 7) Upload key artifacts (handle both single-level and nested data dirs)
+      - name: Upload week5 artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: week5-artifacts
           if-no-files-found: warn
           path: |
             week5/week5.out.ipynb
-
             week5/data/*.vcfstats.txt
             week5/data/illumina.cyp2c.filtered.vcf.gz
             week5/data/illumina.cyp2c.filtered.vcf.gz.tbi
@@ -135,7 +217,6 @@ jobs:
             week5/data/igv_snapshots/**/*.png
             week5/data/igv_snapshots/**/*.jpg
             week5/data/igv_snapshots/**/*.jpeg
-
             week5/week5/data/*.vcfstats.txt
             week5/week5/data/illumina.cyp2c.filtered.vcf.gz
             week5/week5/data/illumina.cyp2c.filtered.vcf.gz.tbi
@@ -153,12 +234,12 @@ jobs:
             week5/week5/data/igv_snapshots/**/*.jpg
             week5/week5/data/igv_snapshots/**/*.jpeg
 
-      # 8) آپلود فولدر week5 به‌صورت catch-all (فقط زیر week5/)
-      - name: Upload week5 folder (catch-all)
+      # 8) (Optional) Upload the whole week5 folder for debugging
+      - name: Upload full week5 folder
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: week5-folder
-          if-no-files-found: ignore
+          if-no-files-found: warn
           path: |
             week5/**
