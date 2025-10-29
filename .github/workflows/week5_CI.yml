@@ -12,48 +12,81 @@ on:
   workflow_dispatch:
 
 jobs:
-  run-week5:
+  run:
     runs-on: ubuntu-latest
+
     steps:
+      # 1) Checkout
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 2) Python + ابزارهای لازم
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install system tools
+      - name: Install system deps (bcftools/samtools/tabix)
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            curl bzip2 unzip tabix \
-            minimap2 samtools bcftools \
-            git make gcc g++ \
-            zlib1g-dev libbz2-dev liblzma-dev libcurl4-openssl-dev \
-            autoconf automake libtool pkg-config \
-            xvfb openjdk-17-jre
-          minimap2 --version
-          samtools --version | head -n1
-          bcftools --version | head -n1
-          java -version
-
-      - name: Install Python deps
-        run: |
+          sudo apt-get install -y bcftools samtools tabix bedtools
           python -m pip install --upgrade pip
-          pip install jupyter nbconvert nbclient whatshap
+          pip install jupyter nbconvert
 
+      # (اختیاری) اگر مشکل "MissingIDFieldWarning" اذیت می‌کند، این قدم فعال شود
+      # - name: Normalize notebook IDs (optional)
+      #   run: |
+      #     python - <<'PY'
+      #     import nbformat as nbf
+      #     p = "week5/week5.ipynb"
+      #     nb = nbf.read(p, as_version=4)
+      #     # فقط باز و ذخیره مجدد برای normalize (نسخه های جدید nbformat اینکار را انجام می‌دهند)
+      #     nbf.write(nb, p)
+      #     PY
 
-      - name: Execute notebook (Stages 1–6)
+      # 3) اجرای نوت‌بوک و ساخت خروجی با نام و مسیر مشخص
+      - name: Execute notebook
         run: |
           jupyter nbconvert --to notebook --execute week5/week5.ipynb \
-            --output week5/week5.out.ipynb \
-            --ExecutePreprocessor.timeout=10800
-      - name: Upload artifacts (results)
+            --output week5.out --output-dir week5
+
+      # 4) اگر به هر دلیل vcfstats ساخته نشده باشد، اینجا بساز
+      - name: Ensure vcfstats exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd week5/data
+
+          ILL="illumina.cyp2c.filtered.vcf.gz"
+          PAC="pacbio.cyp2c.filtered.vcf.gz"
+
+          if [[ -s "$ILL" && -s "$PAC" ]]; then
+            [[ -s "$ILL.tbi" ]] || tabix -f -p vcf "$ILL"
+            [[ -s "$PAC.tbi" ]] || tabix -f -p vcf "$PAC"
+
+            [[ -s illumina.vcfstats.txt ]] || bcftools stats "$ILL" > illumina.vcfstats.txt || true
+            [[ -s pacbio.vcfstats.txt  ]] || bcftools stats "$PAC"  > pacbio.vcfstats.txt  || true
+          fi
+
+      # 5) لیست خروجی‌ها (برای دیباگ لاگ)
+      - name: Tree outputs
+        run: |
+          echo "== Find key files =="
+          ls -lah week5/week5.out.ipynb || true
+          ls -lah week5/data/*.vcf.gz*   || true
+          ls -lah week5/data/*.vcfstats.txt || true
+          ls -lah week5/data/isec/*/*    || true
+          ls -lah week5/data/discordant_sites.tsv || true
+          ls -lah week5/data/star_allele_helper.tsv || true
+          ls -lah week5/data/igv_snapshots || true
+          find week5/data/igv_snapshots -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -maxdepth 3 -print || true
+
+      # 6) آپلود آرتیفکت‌ها
+      - name: Upload week5 artifacts
         uses: actions/upload-artifact@v4
-        if: always()
         with:
-          name: week5-results
+          name: week5-artifacts
+          if-no-files-found: warn
           path: |
             week5/week5.out.ipynb
             week5/data/*.vcfstats.txt
@@ -65,7 +98,10 @@ jobs:
             week5/data/illumina.phased.vcf.gz.tbi
             week5/data/pacbio.phased.vcf.gz
             week5/data/pacbio.phased.vcf.gz.tbi
-            week5/data/isec/**/*
+            week5/data/isec/**/*.vcf.gz
+            week5/data/isec/**/*.vcf.gz.tbi
             week5/data/discordant_sites.tsv
             week5/data/star_allele_helper.tsv
-            week5/data/igv_snapshots/**/*
+            week5/data/igv_snapshots/**/*.png
+            week5/data/igv_snapshots/**/*.jpg
+            week5/data/igv_snapshots/**/*.jpeg
