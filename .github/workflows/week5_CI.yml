@@ -4,11 +4,11 @@ on:
   push:
     paths:
       - "week5/**"
-      - ".github/workflows/week5_CI.yml"
+      - ".github/workflows/week5-ci.yml"
   pull_request:
     paths:
       - "week5/**"
-      - ".github/workflows/week5_CI.yml"
+      - ".github/workflows/week5-ci.yml"
   workflow_dispatch:
 
 jobs:
@@ -16,9 +16,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1) Checkout
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 2) Python + CLI tools
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -29,18 +31,22 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
+          # minimap2 برای Stage 1، و بقیه برای مراحل بعدی
           sudo apt-get install -y minimap2 bcftools samtools tabix bedtools curl unzip
           python -m pip install --upgrade pip
           pip install jupyter nbconvert
 
+      # 3) Execute notebook -> writes week5/week5.out.ipynb
       - name: Execute notebook
         shell: bash
         run: |
           set -euo pipefail
+          # خروجی را در پوشه‌ی week5 می‌گذاریم، بنابراین نوت‌بوک داخل week5/week5.out.ipynb ذخیره می‌شود
           jupyter nbconvert --to notebook --execute week5/week5.ipynb \
             --ExecutePreprocessor.timeout=0 \
             --output week5.out --output-dir week5
 
+      # 4) Ensure vcfstats exist (supports either week5/data OR week5/week5/data)
       - name: Ensure vcfstats exist
         if: always()
         shell: bash
@@ -69,11 +75,13 @@ jobs:
             echo "[WARN] VCFs not found; skipping stats."
           fi
 
+      # 5) Make IGV snapshots (headless)
       - name: Make IGV snapshots (headless)
         if: always()
         shell: bash
         run: |
           set -euo pipefail
+          # Pick the right data dir (فقط week5؛ کاری به week1/week4 نداریم)
           if [[ -d week5/data ]]; then
             datadir="week5/data"
           elif [[ -d week5/week5/data ]]; then
@@ -94,19 +102,23 @@ jobs:
             exit 0
           fi
 
+          # Install Java + xvfb and fetch a valid IGV build
           sudo apt-get update
           sudo apt-get install -y openjdk-17-jre xvfb
-          IGV_VER="2.16.2"
-          IGV_URL="https://data.broadinstitute.org/igv/projects/downloads/2.16/IGV_Linux_${IGV_VER}.zip"
-          curl -L -o igv.zip "$IGV_URL"
+          IGV_VER="2.19.6"
+          IGV_URL="https://data.broadinstitute.org/igv/projects/downloads/2.19/IGV_${IGV_VER}.zip"
+          echo "[INFO] downloading IGV ${IGV_VER} ..."
+          curl -fL -o igv.zip "$IGV_URL"
           unzip -q igv.zip
-          IGV_DIR="$(pwd)/IGV_Linux_${IGV_VER}"
+          IGV_DIR="$(pwd)/IGV_${IGV_VER}"
+          test -x "$IGV_DIR/igv.sh" || { echo "[ERR] igv.sh not found in $IGV_DIR"; exit 1; }
 
           BED=".cyp2c.sorted.bed"
           SITES="discordant_sites.tsv"
           SNAPDIR="$(pwd)/igv_snapshots"
           mkdir -p "$SNAPDIR"
 
+          # اگر دیسکوردانت نداریم، چند تا پوزیشن نمونه می‌سازیم تا اسنپ‌شات تولید شود
           if [[ ! -s "$SITES" ]]; then
             echo -e "chrom\tpos\tgene" > "$SITES"
             if [[ -s isec/shared/0000.vcf.gz && -s "$BED" ]]; then
@@ -120,33 +132,44 @@ jobs:
             fi
           fi
 
+          # IGV batch به‌صورت YAML-safe heredoc (بدون بسط شل)
           BATCH="$(pwd)/igv.batch"
-          : > "$BATCH"
-          printf "new\n" >> "$BATCH"
-          printf "genome %s/%s\n" "$(pwd)" "$REF" >> "$BATCH"
-          printf "snapshotDirectory %s\n" "$SNAPDIR" >> "$BATCH"
-          printf "load %s/%s\n" "$(pwd)" "$BAM1" >> "$BATCH"
-          printf "load %s/%s\n" "$(pwd)" "$BAM2" >> "$BATCH"
-          printf "preference SAM.SHOW_COVERAGE true\n" >> "$BATCH"
-          printf "preference SAM.SHOW_CENTER_LINE true\n" >> "$BATCH"
+          cat > "$BATCH" <<'EOF'
+new
+genome __REF__
+snapshotDirectory __SNAPDIR__
+load __BAM1__
+load __BAM2__
+preference SAM.SHOW_COVERAGE true
+preference SAM.SHOW_CENTER_LINE true
+EOF
 
+          # جایگزینی مسیرها به‌صورت ایمن
+          sed -i \
+            -e "s#__REF__#$(pwd)/$REF#g" \
+            -e "s#__SNAPDIR__#$SNAPDIR#g" \
+            -e "s#__BAM1__#$(pwd)/$BAM1#g" \
+            -e "s#__BAM2__#$(pwd)/$BAM2#g" "$BATCH"
+
+          # اضافه‌کردن فرمان‌های snapshot برای هر ردیف SITES
           awk 'BEGIN{OFS="\t"} NR>1 {
                  chrom=$1; pos=$2; gene=$3;
                  start=pos-50; if(start<1) start=1; end=pos+50;
-                 fname=sprintf("%s_%s_%s.png", gene, chrom, pos);
-                 printf "goto %s:%d-%d\n", chrom, start, end;
+                 fname=gene"_"chrom"_"pos".png";
+                 print "goto "chrom":"start"-"end;
                  print "sort base";
                  print "collapse";
-                 printf "snapshot %s\n", fname;
+                 print "snapshot "fname;
                }' "$SITES" >> "$BATCH"
+          echo "exit" >> "$BATCH"
 
-          printf "exit\n" >> "$BATCH"
-
+          # اجرای headless
           echo "[INFO] Running IGV batch..."
-          xvfb-run -a bash -lc '"$IGV_DIR/igv.sh" -b "$BATCH"'
+          xvfb-run -a bash -lc "\"$IGV_DIR/igv.sh\" -b \"$BATCH\""
           echo "[INFO] Snapshots created:"
           ls -lah "$SNAPDIR" || true
 
+      # 6) Show tree and key files (limit to week5 scope)
       - name: Tree outputs
         if: always()
         shell: bash
@@ -177,6 +200,7 @@ jobs:
           ls -lah week5/week5/data/igv_snapshots || true
           find week5/week5/data/igv_snapshots -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -maxdepth 3 -print || true
 
+      # 7) Upload artifacts (includes snapshots) — فقط مسیرهای week5
       - name: Upload week5 artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -218,6 +242,7 @@ jobs:
             week5/week5/data/igv_snapshots/**/*.jpg
             week5/week5/data/igv_snapshots/**/*.jpeg
 
+      # 8) (Optional) Upload entire week5 folder to help debug nesting (week5/week5/…)
       - name: Upload full week5 folder
         if: always()
         uses: actions/upload-artifact@v4
