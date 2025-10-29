@@ -33,7 +33,6 @@ jobs:
           sudo apt-get install -y minimap2 bcftools samtools tabix bedtools curl unzip xvfb openjdk-21-jre-headless
           python -m pip install --upgrade pip
           pip install jupyter nbconvert
-          sudo apt-get install -y curl unzip
 
       - name: Execute notebook
         shell: bash
@@ -75,11 +74,12 @@ jobs:
         if: always()
         shell: bash
         env:
-          # برای اطمینان از استفاده IGV از جاوای درست
           JAVA_HOME: /usr/lib/jvm/java-21-openjdk-amd64
-          PATH: /usr/lib/jvm/java-21-openjdk-amd64/bin:${{ env.PATH }}
         run: |
           set -euo pipefail
+          # Java 21 را فقط به PATH اضافه کن، جایگزین نکن
+          export PATH="$JAVA_HOME/bin:$PATH"
+
           if [[ -d week5/data ]]; then
             datadir="week5/data"
           elif [[ -d week5/week5/data ]]; then
@@ -100,6 +100,10 @@ jobs:
             exit 0
           fi
 
+          # اطمینان از وجود curl/unzip (باید از قبل نصب باشند)
+          command -v curl >/dev/null 2>&1 || { echo "[ERR] curl missing"; exit 1; }
+          command -v unzip >/dev/null 2>&1 || { echo "[ERR] unzip missing"; exit 1; }
+
           IGV_VER="2.19.6"
           IGV_URL="https://data.broadinstitute.org/igv/projects/downloads/2.19/IGV_${IGV_VER}.zip"
           echo "[INFO] downloading IGV ${IGV_VER} ..."
@@ -113,6 +117,7 @@ jobs:
           SNAPDIR="$(pwd)/igv_snapshots"
           mkdir -p "$SNAPDIR"
 
+          # اگر لیست سایت‌ها نبود، چندتا موقعیت بساز
           if [[ ! -s "$SITES" ]]; then
             echo -e "chrom\tpos\tgene" > "$SITES"
             if [[ -s isec/shared/0000.vcf.gz && -s "$BED" ]]; then
@@ -126,6 +131,7 @@ jobs:
             fi
           fi
 
+          # ساخت batch IGV (بدون heredoc تا YAML نشکند)
           BATCH="$(pwd)/igv.batch"
           {
             printf "new\n"
@@ -148,8 +154,7 @@ jobs:
                }' "$SITES" >> "$BATCH"
           echo "exit" >> "$BATCH"
 
-          echo "[INFO] Running IGV batch with Java at: $(java -version 2>&1 | head -n1)"
-          # -Djava.util.prefs.userRoot برای جلوگیری از warning/permission
+          echo "[INFO] Running IGV batch with: $(java -version 2>&1 | head -n1)"
           xvfb-run -a bash -lc "\"$IGV_DIR/igv.sh\" -Djava.util.prefs.userRoot=$(pwd) -b \"$BATCH\""
           echo "[INFO] Snapshots created:"
           ls -lah "$SNAPDIR" || true
