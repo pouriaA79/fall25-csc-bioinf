@@ -20,13 +20,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2) Python + CLI tools we need
+      # 2) Python + CLI tools (minimap2 needed in stage 1, bcftools/samtools/tabix later)
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Install system deps (minimap2/bcftools/samtools/tabix/bedtools)
+      - name: Install system deps
         shell: bash
         run: |
           set -euo pipefail
@@ -35,7 +35,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install jupyter nbconvert
 
-      # 3) Execute the notebook -> write output next to it as week5/week5.out.ipynb
+      # 3) Execute the notebook -> writes week5/week5.out.ipynb
       - name: Execute notebook
         shell: bash
         run: |
@@ -44,14 +44,12 @@ jobs:
             --ExecutePreprocessor.timeout=0 \
             --output week5.out --output-dir week5
 
-      # 4) Ensure VCF stats (handles both week5/data and week5/week5/data)
+      # 4) Ensure vcfstats exist (supports either week5/data OR week5/week5/data)
       - name: Ensure vcfstats exist
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-
-          # Resolve data dir
           if [[ -d week5/data ]]; then
             datadir="week5/data"
           elif [[ -d week5/week5/data ]]; then
@@ -75,14 +73,13 @@ jobs:
             echo "[WARN] VCFs not found; skipping stats."
           fi
 
-      # 5) Make IGV snapshots headlessly (only if BAMs & REF are present)
+      # 5) Make IGV snapshots headlessly (only if BAMs & REF exist)
       - name: Make IGV snapshots (headless)
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-
-          # Resolve data dir
+          # Pick the right data dir
           if [[ -d week5/data ]]; then
             datadir="week5/data"
           elif [[ -d week5/week5/data ]]; then
@@ -103,7 +100,7 @@ jobs:
             exit 0
           fi
 
-          # Install Java + xvfb and get IGV
+          # Install Java + xvfb and fetch IGV
           sudo apt-get update
           sudo apt-get install -y openjdk-17-jre xvfb
           IGV_VER="2.16.2"
@@ -117,21 +114,21 @@ jobs:
           SNAPDIR="$(pwd)/igv_snapshots"
           mkdir -p "$SNAPDIR"
 
-          # If we don't have discordant sites, synthesize a few from shared or fallback
+          # If we don't have discordant sites, synthesize a few positions
           if [[ ! -s "$SITES" ]]; then
             echo -e "chrom\tpos\tgene" > "$SITES"
             if [[ -s isec/shared/0000.vcf.gz && -s "$BED" ]]; then
               while read -r chrom start end gene; do
                 region="${chrom}:${start}-${end}"
                 bcftools view -r "$region" -H isec/shared/0000.vcf.gz \
-                | awk -v g="$gene" 'NR<=3 {print $1"\t"$2"\t"g}' >> "$SITES"
+                  | awk -v g="$gene" 'NR<=3 {print $1"\t"$2"\t"g}' >> "$SITES"
               done < "$BED"
             else
               printf "chr10\t94938700\tCYP2C9\nchr10\t95036850\tCYP2C8\nchr10\t94762750\tCYP2C19\n" >> "$SITES"
             fi
           fi
 
-          # Build IGV batch file
+          # Build IGV batch
           BATCH="$(pwd)/igv.batch"
           cat > "$BATCH" <<EOF
 new
@@ -143,7 +140,7 @@ preference SAM.SHOW_COVERAGE true
 preference SAM.SHOW_CENTER_LINE true
 EOF
 
-          awk 'BEGIN{OFS="\t"} NR>1 { 
+          awk 'BEGIN{OFS="\t"} NR>1 {
                  chrom=$1; pos=$2; gene=$3;
                  start=pos-50; if(start<1) start=1; end=pos+50;
                  fname=gene"_"chrom"_"pos".png";
@@ -161,14 +158,14 @@ EOF
           echo "[INFO] Snapshots created:"
           ls -lah "$SNAPDIR" || true
 
-      # 6) Debug tree & key files (show both possible layouts)
+      # 6) Show tree and key files (only week5 paths)
       - name: Tree outputs
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          echo "== TREE from repo root =="
-          find . -maxdepth 3 -type d -name data | sort
+          echo "== TREE under week5 =="
+          find week5 -maxdepth 3 -type d -print | sort
           echo "== Key outputs =="
           ls -lah week5/week5.out.ipynb || true
 
@@ -192,7 +189,7 @@ EOF
           ls -lah week5/week5/data/igv_snapshots || true
           find week5/week5/data/igv_snapshots -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -maxdepth 3 -print || true
 
-      # 7) Upload key artifacts (handle both single-level and nested data dirs)
+      # 7) Upload artifacts (includes snapshots). Only week5-scoped paths.
       - name: Upload week5 artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -234,7 +231,7 @@ EOF
             week5/week5/data/igv_snapshots/**/*.jpg
             week5/week5/data/igv_snapshots/**/*.jpeg
 
-      # 8) (Optional) Upload the whole week5 folder for debugging
+      # 8) (Optional) Upload whole week5 folder for debugging
       - name: Upload full week5 folder
         if: always()
         uses: actions/upload-artifact@v4
