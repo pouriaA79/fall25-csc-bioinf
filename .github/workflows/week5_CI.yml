@@ -16,9 +16,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1) Checkout
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 2) Python + CLI tools (minimap2 در استیج‌های اول نوت‌بوک، IGV نیاز به Java 21 و xvfb)
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -29,11 +31,11 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          # ابزارهای پایه + Java 21 برای IGV + Xvfb برای اجرا بدون نمایشگر
           sudo apt-get install -y minimap2 bcftools samtools tabix bedtools curl unzip xvfb openjdk-21-jre-headless
           python -m pip install --upgrade pip
           pip install jupyter nbconvert
 
+      # 3) Run notebook -> week5/week5.out.ipynb
       - name: Execute notebook
         shell: bash
         run: |
@@ -42,15 +44,16 @@ jobs:
             --ExecutePreprocessor.timeout=0 \
             --output week5.out --output-dir week5
 
+      # 4) Ensure vcfstats (هم‌خوان با هر دو ساختار data/)
       - name: Ensure vcfstats exist
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -d week5/data ]]; then
-            datadir="week5/data"
-          elif [[ -d week5/week5/data ]]; then
+          if [[ -d week5/week5/data ]]; then
             datadir="week5/week5/data"
+          elif [[ -d week5/data ]]; then
+            datadir="week5/data"
           else
             echo "[INFO] no data dir found; skipping vcfstats."
             exit 0
@@ -70,19 +73,19 @@ jobs:
             echo "[WARN] VCFs not found; skipping stats."
           fi
 
+      # 5) IGV snapshots (headless) + fallback when sites empty
       - name: Make IGV snapshots (headless)
         if: always()
         shell: bash
         env:
-          JAVA_HOME: /usr/lib/jvm/java-21-openjdk-amd64
+          JAVA_TOOL_OPTIONS: "-Djava.awt.headless=true"
         run: |
           set -euo pipefail
-          export PATH="$JAVA_HOME/bin:$PATH"
           # pick data dir
-          if [[ -d week5/data ]]; then
-            datadir="week5/data"
-          elif [[ -d week5/week5/data ]]; then
+          if [[ -d week5/week5/data ]]; then
             datadir="week5/week5/data"
+          elif [[ -d week5/data ]]; then
+            datadir="week5/data"
           else
             echo "[INFO] no data dir found; skipping IGV snapshots."
             exit 0
@@ -93,49 +96,48 @@ jobs:
           REF="chr10.fa"
           BAM1="illumina.chr10.sorted.bam"
           BAM2="pacbio.chr10.sorted.bam"
+
           if [[ ! -s "$REF" || ! -s "$BAM1" || ! -s "$BAM2" || ! -s "$BAM1.bai" || ! -s "$BAM2.bai" ]]; then
-            echo "[INFO] Required files for IGV not found; skipping snapshots."
+            echo "[INFO] Required REF/BAMs not found; skipping snapshots."
             exit 0
           fi
 
+          # download IGV 2.19.6
           IGV_VER="2.19.6"
           IGV_URL="https://data.broadinstitute.org/igv/projects/downloads/2.19/IGV_${IGV_VER}.zip"
           echo "[INFO] downloading IGV ${IGV_VER} ..."
           curl -fL -o igv.zip "$IGV_URL"
           unzip -q igv.zip
           IGV_DIR="$(pwd)/IGV_${IGV_VER}"
-          test -x "$IGV_DIR/igv.sh" || { echo "[ERR] igv.sh not found in $IGV_DIR"; exit 1; }
+          test -x "$IGV_DIR/igv.sh" || { echo "[ERR] igv.sh not found"; exit 1; }
 
           BED=".cyp2c.sorted.bed"
           SITES="discordant_sites.tsv"
           SNAPDIR="$(pwd)/igv_snapshots"
           mkdir -p "$SNAPDIR"
 
-          # if no sites, synthesize a few demo positions
-          if [[ ! -s "$SITES" ]]; then
-            echo -e "chrom\tpos\tgene" > "$SITES"
-            if [[ -s isec/shared/0000.vcf.gz && -s "$BED" ]]; then
-              while read -r chrom start end gene; do
-                region="${chrom}:${start}-${end}"
-                bcftools view -r "$region" -H isec/shared/0000.vcf.gz \
-                  | awk -v g="$gene" 'NR<=3 {print $1"\t"$2"\t"g}' >> "$SITES"
-              done < "$BED"
-            else
-              printf "chr10\t94938700\tCYP2C9\nchr10\t95036850\tCYP2C8\nchr10\t94762750\tCYP2C19\n" >> "$SITES"
-            fi
+          # If SITES missing OR has only header, create fallback positions
+          if [[ -s "$SITES" ]]; then
+            data_lines=$(awk 'NR>1 && $1!=""{c++} END{print c+0}' "$SITES")
+          else
+            data_lines=0
+          fi
+          if [[ "$data_lines" -lt 1 ]]; then
+            echo "[INFO] No usable sites; creating fallback."
+            printf "chrom\tpos\tgene\n" > "$SITES"
+            printf "chr10\t94938700\tCYP2C9\nchr10\t95036850\tCYP2C8\nchr10\t94762750\tCYP2C19\n" >> "$SITES"
           fi
 
-          # build batch file (no heredoc to avoid YAML quoting issues)
+          # Build IGV batch file
           BATCH="$(pwd)/igv.batch"
-          {
-            printf "new\n"
-            printf "genome %s/%s\n" "$(pwd)" "$REF"
-            printf "snapshotDirectory %s\n" "$SNAPDIR"
-            printf "load %s/%s\n" "$(pwd)" "$BAM1"
-            printf "load %s/%s\n" "$(pwd)" "$BAM2"
-            printf "preference SAM.SHOW_COVERAGE true\n"
-            printf "preference SAM.SHOW_CENTER_LINE true\n"
-          } > "$BATCH"
+          : > "$BATCH"
+          printf "new\n"                                   >> "$BATCH"
+          printf "genome %s/%s\n" "$(pwd)" "$REF"          >> "$BATCH"
+          printf "snapshotDirectory %s\n" "$SNAPDIR"       >> "$BATCH"
+          printf "load %s/%s\n" "$(pwd)" "$BAM1"           >> "$BATCH"
+          printf "load %s/%s\n" "$(pwd)" "$BAM2"           >> "$BATCH"
+          printf "preference SAM.SHOW_COVERAGE true\n"     >> "$BATCH"
+          printf "preference SAM.SHOW_CENTER_LINE true\n"  >> "$BATCH"
 
           awk 'BEGIN{OFS="\t"} NR>1 {
                  chrom=$1; pos=$2; gene=$3;
@@ -148,17 +150,15 @@ jobs:
                }' "$SITES" >> "$BATCH"
           echo "exit" >> "$BATCH"
 
-          # مهم: فلگ‌های JVM را با JAVA_TOOL_OPTIONS بده، نه به igv.sh
-          export JAVA_TOOL_OPTIONS="-Djava.awt.headless=true -Djava.util.prefs.userRoot=$(pwd)"
-
-          echo "[INFO] Running IGV batch with: $(java -version 2>&1 | head -n1)"
-          # فقط -b استفاده کن؛ --headless نگذار
-          xvfb-run -a -s "-screen 0 1920x1080x24" \
-            "$IGV_DIR/igv.sh" -b "$BATCH"
-
-          echo "[INFO] Snapshots created:"
+          echo "[INFO] Running IGV batch with Java:"
+          java -version || true
+          # IGV نیاز به Java 21 دارد؛ runner پیش‌فرض دارد. Xvfb برای headless GUI
+          xvfb-run -a bash -lc "\"$IGV_DIR/igv.sh\" -b \"$BATCH\""
+          echo "[INFO] Snapshots:"
           ls -lah "$SNAPDIR" || true
+          find "$SNAPDIR" -maxdepth 1 -type f -name "*.png" -print || true
 
+      # 6) Show tree only under week5
       - name: Tree outputs
         if: always()
         shell: bash
@@ -169,16 +169,6 @@ jobs:
           echo "== Key outputs =="
           ls -lah week5/week5.out.ipynb || true
 
-          echo "== Check week5/data =="
-          ls -lah week5/data || true
-          ls -lah week5/data/*.vcf.gz* || true
-          ls -lah week5/data/*.vcfstats.txt || true
-          ls -lah week5/data/isec/*/* || true
-          ls -lah week5/data/discordant_sites.tsv || true
-          ls -lah week5/data/star_allele_helper.tsv || true
-          ls -lah week5/data/igv_snapshots || true
-          find week5/data/igv_snapshots -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -maxdepth 3 -print || true
-
           echo "== Check week5/week5/data =="
           ls -lah week5/week5/data || true
           ls -lah week5/week5/data/*.vcf.gz* || true
@@ -187,8 +177,9 @@ jobs:
           ls -lah week5/week5/data/discordant_sites.tsv || true
           ls -lah week5/week5/data/star_allele_helper.tsv || true
           ls -lah week5/week5/data/igv_snapshots || true
-          find week5/week5/data/igv_snapshots -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -maxdepth 3 -print || true
+          find week5/week5/data/igv_snapshots -type f -name "*.png" -maxdepth 1 -print || true
 
+      # 7) Upload artifacts (شامل اسنپ‌شات‌ها)
       - name: Upload week5 artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -197,35 +188,13 @@ jobs:
           if-no-files-found: warn
           path: |
             week5/week5.out.ipynb
-            week5/data/*.vcfstats.txt
-            week5/data/illumina.cyp2c.filtered.vcf.gz
-            week5/data/illumina.cyp2c.filtered.vcf.gz.tbi
-            week5/data/pacbio.cyp2c.filtered.vcf.gz
-            week5/data/pacbio.cyp2c.filtered.vcf.gz.tbi
-            week5/data/illumina.phased.vcf.gz
-            week5/data/illumina.phased.vcf.gz.tbi
-            week5/data/pacbio.phased.vcf.gz
-            week5/data/pacbio.phased.vcf.gz.tbi
-            week5/data/isec/**/*.vcf.gz
-            week5/data/isec/**/*.vcf.gz.tbi
-            week5/data/discordant_sites.tsv
-            week5/data/star_allele_helper.tsv
-            week5/data/igv_snapshots/**/*.png
-            week5/data/igv_snapshots/**/*.jpg
-            week5/data/igv_snapshots/**/*.jpeg
             week5/week5/data/*.vcfstats.txt
             week5/week5/data/illumina.cyp2c.filtered.vcf.gz
             week5/week5/data/illumina.cyp2c.filtered.vcf.gz.tbi
             week5/week5/data/pacbio.cyp2c.filtered.vcf.gz
             week5/week5/data/pacbio.cyp2c.filtered.vcf.gz.tbi
-            week5/week5/data/illumina.phased.vcf.gz
-            week5/week5/data/illumina.phased.vcf.gz.tbi
-            week5/week5/data/pacbio.phased.vcf.gz
-            week5/week5/data/pacbio.phased.vcf.gz.tbi
             week5/week5/data/isec/**/*.vcf.gz
             week5/week5/data/isec/**/*.vcf.gz.tbi
             week5/week5/data/discordant_sites.tsv
             week5/week5/data/star_allele_helper.tsv
             week5/week5/data/igv_snapshots/**/*.png
-            week5/week5/data/igv_snapshots/**/*.jpg
-            week5/week5/data/igv_snapshots/**/*.jpeg
