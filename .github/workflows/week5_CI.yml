@@ -16,9 +16,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1) Checkout
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 2) Python + CLI tools
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -29,12 +31,13 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y \
-            minimap2 bcftools samtools tabix bedtools \
-            curl unzip xvfb openjdk-21-jre-headless
+          # ❗ جاوای کامل (غیر-headless) + Xvfb + ابزارها
+          sudo apt-get install -y openjdk-21-jre xvfb curl unzip \
+                                  minimap2 bcftools samtools tabix bedtools
           python -m pip install --upgrade pip
           pip install jupyter nbconvert
 
+      # 3) Execute the notebook -> writes week5/week5.out.ipynb
       - name: Execute notebook
         shell: bash
         run: |
@@ -43,15 +46,16 @@ jobs:
             --ExecutePreprocessor.timeout=0 \
             --output week5.out --output-dir week5
 
+      # 4) Ensure vcfstats exist
       - name: Ensure vcfstats exist
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          if [[ -d week5/week5/data ]]; then
-            datadir="week5/week5/data"
-          elif [[ -d week5/data ]]; then
+          if [[ -d week5/data ]]; then
             datadir="week5/data"
+          elif [[ -d week5/week5/data ]]; then
+            datadir="week5/week5/data"
           else
             echo "[INFO] no data dir found; skipping vcfstats."
             exit 0
@@ -71,7 +75,8 @@ jobs:
             echo "[WARN] VCFs not found; skipping stats."
           fi
 
-      - name: Make IGV snapshots (Xvfb manual DISPLAY)
+      # 5) IGV snapshots under Xvfb (با JRE کامل)
+      - name: Make IGV snapshots (Xvfb)
         if: always()
         shell: bash
         run: |
@@ -96,17 +101,9 @@ jobs:
             exit 0
           fi
 
-          # Java 21 + وابستگی‌های X (برای اجتناب از HeadlessException)
-          sudo apt-get update
-          sudo apt-get install -y openjdk-21-jre-headless xvfb curl unzip \
-                                  libxrender1 libxtst6 libxi6
-          export JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
-          export PATH="$JAVA_HOME/bin:$PATH"
-
-          # هرگونه حالت headless را کاملاً خاموش کن
-          unset JAVA_TOOL_OPTIONS || true
-          unset _JAVA_OPTIONS || true
-          export GDK_BACKEND=x11
+          # اطمینان از JRE کامل و Java 21
+          java -version
+          which java
 
           IGV_VER="2.19.6"
           IGV_URL="https://data.broadinstitute.org/igv/projects/downloads/2.19/IGV_${IGV_VER}.zip"
@@ -115,8 +112,6 @@ jobs:
           unzip -q -o igv.zip
           IGV_DIR="$(pwd)/IGV_${IGV_VER}"
           test -x "$IGV_DIR/igv.sh" || { echo "[ERR] igv.sh not found"; exit 1; }
-
-          echo "[INFO] Java version:"; java -version
 
           # نقاط برای اسنپ‌شات‌ها
           SITES="discordant_sites.tsv"
@@ -150,26 +145,30 @@ jobs:
                }' "$SITES" >> "$BATCH"
           echo "exit" >> "$BATCH"
 
-          # --- اینجا خودمان Xvfb را بالا می‌آوریم و DISPLAY را ست می‌کنیم ---
-          export DISPLAY=":99"
-          Xvfb "$DISPLAY" -screen 0 1600x1200x24 -nolisten tcp -ac &
-          xvfb_pid=$!
-          # کمی صبر برای بالا آمدن Xvfb
-          for i in {1..10}; do
-            xdpyinfo -display "$DISPLAY" >/dev/null 2>&1 && break || sleep 0.5
-          done
-
-          echo "[INFO] Running IGV batch (DISPLAY=$DISPLAY) ..."
-          # بدون نقل‌قول‌های اضافی، مستقیم igv.sh را اجرا کن
-          "$IGV_DIR/igv.sh" -b "$BATCH" || { echo "[ERR] IGV failed"; kill $xvfb_pid || true; exit 1; }
-
-          # بستن Xvfb
-          kill $xvfb_pid || true
-          wait $xvfb_pid 2>/dev/null || true
+          # اجرای IGV زیر Xvfb با تنظیم screen
+          echo "[INFO] Java version:"; java -version
+          xvfb-run -a -s "-screen 0 1600x1200x24 -nolisten tcp -ac" \
+            "$IGV_DIR/igv.sh" -b "$BATCH"
 
           echo "[INFO] Final snapshots:"
           ls -lah "$SNAPDIR" || true
 
+      # 6) Tree + key files (week5 scope)
+      - name: Tree outputs
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "== TREE under week5 =="
+          find week5 -maxdepth 3 -type d -print | sort
+          echo "== Key outputs =="
+          ls -lah week5/week5.out.ipynb || true
+          echo "== Check week5/week5/data =="
+          ls -lah week5/week5/data || true
+          ls -lah week5/week5/data/igv_snapshots || true
+          find week5/week5/data/igv_snapshots -type f -maxdepth 3 -print || true
+
+      # 7) Upload artifacts (includes snapshots)
       - name: Upload week5 artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -178,24 +177,16 @@ jobs:
           if-no-files-found: warn
           path: |
             week5/week5.out.ipynb
-            week5/week5/data/*.vcfstats.txt
-            week5/week5/data/illumina.cyp2c.filtered.vcf.gz
-            week5/week5/data/illumina.cyp2c.filtered.vcf.gz.tbi
-            week5/week5/data/pacbio.cyp2c.filtered.vcf.gz
-            week5/week5/data/pacbio.cyp2c.filtered.vcf.gz.tbi
-            week5/week5/data/illumina.phased.vcf.gz
-            week5/week5/data/illumina.phased.vcf.gz.tbi
-            week5/week5/data/pacbio.phased.vcf.gz
-            week5/week5/data/pacbio.phased.vcf.gz.tbi
+            week5/week5/data/illumina.vcfstats.txt
+            week5/week5/data/pacbio.vcfstats.txt
             week5/week5/data/isec/**/*.vcf.gz
             week5/week5/data/isec/**/*.vcf.gz.tbi
             week5/week5/data/discordant_sites.tsv
             week5/week5/data/star_allele_helper.tsv
-            week5/week5/data/igv_snapshots/**/*.png
-            week5/week5/data/igv_snapshots/**/*.jpg
-            week5/week5/data/igv_snapshots/**/*.jpeg
+            week5/week5/data/igv_snapshots/**/*
 
-      - name: Upload full week5 folder (debug)
+      # 8) (Optional) Upload whole week5 folder for debugging
+      - name: Upload full week5 folder
         if: always()
         uses: actions/upload-artifact@v4
         with:
