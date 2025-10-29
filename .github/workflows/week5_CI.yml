@@ -16,11 +16,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1) Checkout
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2) Python + CLI tools (minimap2 needed in stage 1, bcftools/samtools/tabix later)
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -35,7 +33,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install jupyter nbconvert
 
-      # 3) Execute the notebook -> writes week5/week5.out.ipynb
       - name: Execute notebook
         shell: bash
         run: |
@@ -44,7 +41,6 @@ jobs:
             --ExecutePreprocessor.timeout=0 \
             --output week5.out --output-dir week5
 
-      # 4) Ensure vcfstats exist (supports either week5/data OR week5/week5/data)
       - name: Ensure vcfstats exist
         if: always()
         shell: bash
@@ -73,13 +69,11 @@ jobs:
             echo "[WARN] VCFs not found; skipping stats."
           fi
 
-      # 5) Make IGV snapshots headlessly (only if BAMs & REF exist)
       - name: Make IGV snapshots (headless)
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          # Pick the right data dir
           if [[ -d week5/data ]]; then
             datadir="week5/data"
           elif [[ -d week5/week5/data ]]; then
@@ -100,7 +94,6 @@ jobs:
             exit 0
           fi
 
-          # Install Java + xvfb and fetch IGV
           sudo apt-get update
           sudo apt-get install -y openjdk-17-jre xvfb
           IGV_VER="2.16.2"
@@ -114,7 +107,6 @@ jobs:
           SNAPDIR="$(pwd)/igv_snapshots"
           mkdir -p "$SNAPDIR"
 
-          # If we don't have discordant sites, synthesize a few positions
           if [[ ! -s "$SITES" ]]; then
             echo -e "chrom\tpos\tgene" > "$SITES"
             if [[ -s isec/shared/0000.vcf.gz && -s "$BED" ]]; then
@@ -128,7 +120,6 @@ jobs:
             fi
           fi
 
-          # Build IGV batch
           BATCH="$(pwd)/igv.batch"
           cat > "$BATCH" <<EOF
 new
@@ -152,13 +143,11 @@ EOF
 
           echo "exit" >> "$BATCH"
 
-          # Run IGV headless
           echo "[INFO] Running IGV batch..."
           xvfb-run -a bash -lc '"$IGV_DIR/igv.sh" -b "$BATCH"'
           echo "[INFO] Snapshots created:"
           ls -lah "$SNAPDIR" || true
 
-      # 6) Show tree and key files (only week5 paths)
       - name: Tree outputs
         if: always()
         shell: bash
@@ -189,7 +178,6 @@ EOF
           ls -lah week5/week5/data/igv_snapshots || true
           find week5/week5/data/igv_snapshots -type f \( -name "*.png" -o -name "*.jpg" -o -name "*.jpeg" \) -maxdepth 3 -print || true
 
-      # 7) Upload artifacts (includes snapshots). Only week5-scoped paths.
       - name: Upload week5 artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -231,7 +219,6 @@ EOF
             week5/week5/data/igv_snapshots/**/*.jpg
             week5/week5/data/igv_snapshots/**/*.jpeg
 
-      # 8) (Optional) Upload whole week5 folder for debugging
       - name: Upload full week5 folder
         if: always()
         uses: actions/upload-artifact@v4
