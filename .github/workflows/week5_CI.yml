@@ -26,49 +26,53 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install system deps (bcftools/samtools/tabix)
+      - name: Install system deps (minimap2/bcftools/samtools/tabix/bedtools)
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
+          set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y bcftools samtools tabix bedtools
+          sudo apt-get install -y --no-install-recommends \
+            minimap2 bcftools samtools tabix bedtools curl gzip ca-certificates
           python -m pip install --upgrade pip
           pip install jupyter nbconvert
+          # sanity check
+          minimap2 --version
+          samtools --version | head -n1
+          bcftools --version | head -n1
 
-      # (اختیاری) اگر مشکل "MissingIDFieldWarning" اذیت می‌کند، این قدم فعال شود
+      # (اختیاری) نرمالایز کردن نوت‌بوک
       # - name: Normalize notebook IDs (optional)
       #   run: |
       #     python - <<'PY'
       #     import nbformat as nbf
       #     p = "week5/week5.ipynb"
       #     nb = nbf.read(p, as_version=4)
-      #     # فقط باز و ذخیره مجدد برای normalize (نسخه های جدید nbformat اینکار را انجام می‌دهند)
       #     nbf.write(nb, p)
       #     PY
 
-      # 3) اجرای نوت‌بوک و ساخت خروجی با نام و مسیر مشخص
+      # 3) اجرای نوت‌بوک و ساخت خروجی
       - name: Execute notebook
         run: |
           jupyter nbconvert --to notebook --execute week5/week5.ipynb \
             --output week5.out --output-dir week5
 
-      # 4) اگر به هر دلیل vcfstats ساخته نشده باشد، اینجا بساز
+      # 4) اطمینان از وجود vcfstats
       - name: Ensure vcfstats exist
         shell: bash
         run: |
           set -euo pipefail
           cd week5/data
-
           ILL="illumina.cyp2c.filtered.vcf.gz"
           PAC="pacbio.cyp2c.filtered.vcf.gz"
-
           if [[ -s "$ILL" && -s "$PAC" ]]; then
             [[ -s "$ILL.tbi" ]] || tabix -f -p vcf "$ILL"
             [[ -s "$PAC.tbi" ]] || tabix -f -p vcf "$PAC"
-
             [[ -s illumina.vcfstats.txt ]] || bcftools stats "$ILL" > illumina.vcfstats.txt || true
             [[ -s pacbio.vcfstats.txt  ]] || bcftools stats "$PAC"  > pacbio.vcfstats.txt  || true
           fi
 
-      # 5) لیست خروجی‌ها (برای دیباگ لاگ)
+      # 5) نمایش خروجی‌ها برای دیباگ
       - name: Tree outputs
         run: |
           echo "== Find key files =="
