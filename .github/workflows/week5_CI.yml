@@ -88,12 +88,13 @@ jobs:
           fi
 
       # 6) ساخت IGV snapshots با Java 21 + Xvfb (headful مجازی)
+      # 6) ساخت IGV snapshots با Java 21 + Xvfb (headful مجازی)
       - name: Make IGV snapshots
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-
+      
           # پیدا کردن مسیر داده
           if [[ -d week5/week5/data ]]; then
             datadir="week5/week5/data"
@@ -105,7 +106,7 @@ jobs:
           fi
           echo "[INFO] datadir=$datadir"
           cd "$datadir"
-
+      
           # فایل‌های لازم
           REF="chr10.fa"
           BAM1="illumina.chr10.sorted.bam"
@@ -114,13 +115,12 @@ jobs:
             echo "[INFO] Required files for IGV not found; skipping snapshots."
             exit 0
           fi
-
+      
           # Java 21
           export JAVA_HOME="/usr/lib/jvm/java-21-openjdk-amd64"
           export PATH="$JAVA_HOME/bin:$PATH"
-          echo "[INFO] Java version:"
           java -version
-
+      
           # IGV دانلود و آماده‌سازی
           IGV_VER="2.19.6"
           IGV_URL="https://data.broadinstitute.org/igv/projects/downloads/2.19/IGV_${IGV_VER}.zip"
@@ -129,18 +129,20 @@ jobs:
           unzip -q -o igv.zip
           IGV_DIR="$(pwd)/IGV_${IGV_VER}"
           test -x "$IGV_DIR/igv.sh" || { echo "[ERR] igv.sh not found"; exit 1; }
-
+      
+          # ⚠️ مسیر ثابت برای اسنپ‌شات‌ها: week5/igv_snapshots در ریشه‌ی ریپو
+          REPOROOT="$GITHUB_WORKSPACE"
+          SNAPDIR="$REPOROOT/week5/igv_snapshots"
+          mkdir -p "$SNAPDIR"
+      
           # نقاط بازدید
           SITES="discordant_sites.tsv"
-          SNAPDIR="$(pwd)/igv_snapshots"
-          mkdir -p "$SNAPDIR"
           if [[ ! -s "$SITES" ]]; then
-            # اگر فایل آماده نیست 3 نقطه‌ی نمایشی می‌سازیم
             printf "chrom\tpos\tgene\n" > "$SITES"
             printf "chr10\t94938700\tCYP2C9\nchr10\t95036850\tCYP2C8\nchr10\t94762750\tCYP2C19\n" >> "$SITES"
           fi
-
-          # ساخت batch IGV (با echo/printf برای جلوگیری از مشکلات YAML)
+      
+          # ساخت batch IGV با مسیرهای مطلق
           BATCH="$(pwd)/igv.batch"
           {
             echo "new"
@@ -151,7 +153,7 @@ jobs:
             echo "preference SAM.SHOW_COVERAGE true"
             echo "preference SAM.SHOW_CENTER_LINE true"
           } > "$BATCH"
-
+      
           awk 'BEGIN{OFS="\t"} NR>1 {
                  chrom=$1; pos=$2; gene=$3;
                  start=pos-250; if(start<1) start=1; end=pos+250;
@@ -162,25 +164,24 @@ jobs:
                  print "snapshot "fname;
                }' "$SITES" >> "$BATCH"
           echo "exit" >> "$BATCH"
-
+      
           # اجرای IGV زیر Xvfb
-          unset JAVA_TOOL_OPTIONS || true  # بعضی runnerها headless می‌گذارند
+          unset JAVA_TOOL_OPTIONS || true
           Xvfb :99 -screen 0 1600x1200x24 -nolisten tcp -ac &
           XVFB_PID=$!
           export DISPLAY=:99
           sleep 2
-
+      
           echo "[INFO] Running IGV batch (DISPLAY=$DISPLAY) ..."
           set +e
           "$IGV_DIR/igv.sh" -b "$BATCH"
           RC=$?
           set -e
-
           kill $XVFB_PID || true
-
-          echo "[INFO] Final snapshots:"
+      
+          echo "[INFO] Final snapshots in: $SNAPDIR"
           ls -lah "$SNAPDIR" || true
-
+      
           exit $RC
 
       # 7) نشان دادن خروجی‌ها (فقط زیر week5)
