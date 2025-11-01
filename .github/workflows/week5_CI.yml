@@ -258,7 +258,6 @@ jobs:
             igv_snapshots/**/*.png
             igv_snapshots/**/*.jpg
             igv_snapshots/**/*.jpeg
-و برای دیده‌شدن مسیرها در لاگ (خیلی مفید برای grader)، مرحله‌ی «Tree outputs» ر
 
       # 9) Artifact کامل فولدر (برای دیباگ—اختیاری)
       - name: Upload full week5 folder
