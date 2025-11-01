@@ -213,6 +213,7 @@ jobs:
           if-no-files-found: warn
           path: |
             week5/week5.out.ipynb
+            week5/igv_snapshots/**/*.png
             week5/week5/data/*.vcfstats.txt
             week5/week5/data/illumina.cyp2c.filtered.vcf.gz
             week5/week5/data/illumina.cyp2c.filtered.vcf.gz.tbi
