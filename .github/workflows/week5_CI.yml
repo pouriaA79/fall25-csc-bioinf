@@ -226,6 +226,39 @@ jobs:
             week5/week5/data/igv_snapshots/**/*.png
             week5/week5/data/igv_snapshots/**/*.jpg
             week5/week5/data/igv_snapshots/**/*.jpeg
+            week5/week5.out.ipynb
+
+            # VCFهای اصلی
+            week5/week5/data/illumina.cyp2c.filtered.vcf.gz
+            week5/week5/data/illumina.cyp2c.filtered.vcf.gz.tbi
+            week5/week5/data/pacbio.cyp2c.filtered.vcf.gz
+            week5/week5/data/pacbio.cyp2c.filtered.vcf.gz.tbi
+      
+            # فازینگ (حتماً اینها را اضافه کن)
+            week5/week5/data/*phased.vcf.gz
+            week5/week5/data/*phased.vcf.gz.tbi
+            week5/week5/data/*.hapcut2.out
+            week5/week5/data/*.frags
+      
+            # مقایسه و کمک‌ها
+            week5/week5/data/isec/**/*.vcf.gz
+            week5/week5/data/isec/**/*.vcf.gz.tbi
+            week5/week5/data/discordant_sites.tsv
+            week5/week5/data/isec_counts.tsv
+            week5/week5/data/star_allele_helper.tsv
+            week5/week5/data/star_allele_result.tsv
+            week5/week5/data/*vcfstats.txt
+      
+            # IGV snapshots (اگر در week5/igv_snapshots ذخیره می‌کنی)
+            week5/week5/igv_snapshots/**/*.png
+            week5/week5/igv_snapshots/**/*.jpg
+            week5/week5/igv_snapshots/**/*.jpeg
+      
+            # اگر اسنپ‌شات‌ها را در ریشه ساختی، این‌ها را هم نگه دار
+            igv_snapshots/**/*.png
+            igv_snapshots/**/*.jpg
+            igv_snapshots/**/*.jpeg
+و برای دیده‌شدن مسیرها در لاگ (خیلی مفید برای grader)، مرحله‌ی «Tree outputs» ر
 
       # 9) Artifact کامل فولدر (برای دیباگ—اختیاری)
       - name: Upload full week5 folder
