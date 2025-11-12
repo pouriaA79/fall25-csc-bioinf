@@ -1,0 +1,54 @@
+name: Week6 RNA-seq Pipeline
+
+on:
+  push:
+    paths:
+      - "week6/**"
+  workflow_dispatch:
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
+
+    steps:
+      # 1️⃣ Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2️⃣ Install Micromamba and environment
+      - name: Set up Micromamba
+        uses: mamba-org/provision-with-micromamba@v15
+        with:
+          environment-file: week6/environment.yml
+          environment-name: scweek6
+          cache-downloads: true
+          cache-env: true
+
+      # 3️⃣ Run notebook end-to-end
+      - name: Execute week6 notebook
+        run: |
+          mkdir -p week6_runtime/out/ci_logs
+          micromamba run -n scweek6 jupyter nbconvert \
+            --to notebook \
+            --execute week6/week6.ipynb \
+            --output week6_runtime/out/ci_logs/week6_executed.ipynb \
+            --ExecutePreprocessor.timeout=3600
+
+      # 4️⃣ Archive useful outputs as CI artifacts
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: week6_outputs
+          path: |
+            week6_runtime/out/af_quant/alevin.raw.h5ad
+            week6_runtime/out/af_quant/simpleaf_quant_log.json
+            week6_runtime/out/ci_logs/week6_executed.ipynb
+            week6_runtime/out/af_quant/celltypist_summary.tsv
+            week6_runtime/out/umap_final.png
+            week6_runtime/out/umap_clusters.png
+            week6_runtime/out/umap_celltypist_only.png
+          if-no-files-found: ignore
+
