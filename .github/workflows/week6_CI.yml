@@ -20,13 +20,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2) Python 3.10 (بدون pip cache تا ارور requirements نگیری)
+      # 2) Python 3.10 (بدون pip cache تا وابسته به requirements.txt نباشیم)
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
-      # 3) System deps برای build ابزارهای Rust و بعضی wheelها
+      # 3) System deps برای build و بعضی wheelها
       - name: Install system deps
         shell: bash
         run: |
@@ -35,14 +35,13 @@ jobs:
           sudo apt-get install -y \
             build-essential curl unzip pkg-config \
             libssl-dev zlib1g-dev clang cmake \
-            libxml2-dev libxslt1-dev \
-            libhdf5-dev
+            libxml2-dev libxslt1-dev libhdf5-dev
 
-      # 4) Rust (برای نصب alevin-fry / piscem / simpleaf از سورس)
-      - name: Install Rust
+      # 4) Rust (برای simpleaf و alevin-fry)
+      - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      # 5) Cache Cargo (سرعت بیلد دفعه‌های بعد)
+      # 5) Cache Cargo (سریع‌تر شدن نصب‌های بعدی)
       - name: Cache cargo registry and git
         uses: actions/cache@v4
         with:
@@ -53,31 +52,41 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      # 6) نصب ابزارهای Rust
-      - name: Install alevin-fry, piscem, simpleaf
+      # 6) نصب ابزارها: simpleaf + alevin-fry (cargo) و piscem (باینری آماده)
+      - name: Install CLI tools (simpleaf, alevin-fry, piscem)
         shell: bash
         run: |
           set -euo pipefail
           export PATH="$HOME/.cargo/bin:$PATH"
-          cargo install alevin-fry --locked || true
-          cargo install piscem      --locked || true
-          cargo install simpleaf    --locked || true
-          alevin-fry --version
-          piscem --version
-          simpleaf --version
 
-      # 7) نصب پکیج‌های Python
-      - name: Install Python deps
-        shell: bash
-        run: |
-          set -euo pipefail
+          # Python basics
           python -m pip install --upgrade pip
           pip install jupyter nbconvert
-          pip install numpy pandas matplotlib anndata
+
+          # Python libs notebook
+          pip install numpy pandas matplotlib scipy anndata
           pip install "scanpy>=1.9" leidenalg
           pip install "celltypist>=1.6"
 
-      # 8) اجرای نوت‌بوک (self-contained)
+          # Rust-based CLIs
+          cargo install simpleaf --locked
+          cargo install alevin-fry --locked
+
+          # piscem از ریلیز آماده (Linux x86_64)
+          curl -fsSL https://github.com/COMBINE-lab/piscem/releases/download/v0.10.3/piscem-x86_64-unknown-linux-gnu.tar.gz -o piscem.tar.gz
+          tar -xzf piscem.tar.gz
+          sudo mv piscem /usr/local/bin/
+          sudo chmod +x /usr/local/bin/piscem
+
+          # Show versions
+          simpleaf --version
+          alevin-fry --version
+          piscem --version
+
+          # recommended ulimit for piscem
+          ulimit -n 2048 || true
+
+      # 7) اجرای نوت‌بوک (self-contained)
       - name: Execute week6 notebook
         shell: bash
         env:
@@ -88,12 +97,14 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p week6_runtime/out/ci_logs
-          jupyter nbconvert --to notebook --execute week6/week6.ipynb \
+          jupyter nbconvert \
+            --to notebook \
+            --execute week6/week6.ipynb \
             --output week6_executed.ipynb \
             --output-dir week6_runtime/out/ci_logs \
             --ExecutePreprocessor.timeout=5400
 
-      # 9) نمایش خروجی‌ها (sanity)
+      # 8) نمایش خلاصه خروجی‌ها برای sanity
       - name: Tree outputs
         if: always()
         shell: bash
@@ -106,7 +117,7 @@ jobs:
           echo "== ci logs =="
           ls -lah week6_runtime/out/ci_logs || true
 
-      # 10) Artifactهای اصلی (برای نمره‌دهی)
+      # 9) آرتیفکت‌های اصلی برای نمره‌دهی
       - name: Upload week6 artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -125,7 +136,7 @@ jobs:
             week6_runtime/out/umap_final.png
             week6_runtime/out/umap_celltypist_only.png
 
-      # 11) لاگ‌ها (برای دیباگ)
+      # 10) لاگ‌ها (برای دیباگ)
       - name: Upload logs (always)
         if: always()
         uses: actions/upload-artifact@v4
