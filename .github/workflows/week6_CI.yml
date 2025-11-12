@@ -15,12 +15,20 @@ jobs:
   run:
     runs-on: ubuntu-latest
 
+    # محیط‌های مشترک همهٔ گام‌ها
+    env:
+      # مسیر خانه‌ی alevin-fry (برای پرهیز از خطای ALEVIN_FRY_HOME)
+      ALEVIN_FRY_HOME: ${{ github.workspace }}/week6_runtime/.af_home
+      OMP_NUM_THREADS: "4"
+      MKL_NUM_THREADS: "4"
+      NUMEXPR_NUM_THREADS: "4"
+
     steps:
       # 1) Checkout
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2) Python 3.10
+      # 2) Python
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -36,6 +44,9 @@ jobs:
             build-essential curl unzip pkg-config \
             libssl-dev zlib1g-dev clang cmake \
             libxml2-dev libxslt1-dev libhdf5-dev
+          # دایرکتوری‌های خروجی و خانهٔ AF
+          mkdir -p week6_runtime/out/ci_logs
+          mkdir -p "$ALEVIN_FRY_HOME"
 
       # 4) Rust (برای simpleaf و alevin-fry)
       - name: Install Rust toolchain
@@ -52,58 +63,53 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      # 6) نصب ابزارها و پکیج‌ها
+      # 6) نصب ابزارها و کتابخانه‌ها
       - name: Install CLI tools and Python libs
         shell: bash
         run: |
           set -euo pipefail
           export PATH="$HOME/.cargo/bin:$PATH"
 
-          # Python basics
+          # Python basics + libs موردنیاز نوت‌بوک
           python -m pip install --upgrade pip
           pip install jupyter nbconvert
           pip install numpy pandas matplotlib scipy anndata
           pip install "scanpy>=1.9" leidenalg
           pip install "celltypist>=1.6"
 
-          # Rust-based CLIs (بیلد از سورس)
+          # Rust-based CLIs از سورس
           cargo install simpleaf --locked
           cargo install alevin-fry --locked
 
-          # === piscem از ریلیز آماده و نصب مطمئن ===
-          # نسخه رو اگر خواستی pin کن؛ اینجا یک نسخه پایدار نمونه گذاشتم:
+          # نصب piscem از ریلیز آماده (Linux x86_64)
           PISCEM_VER="v0.10.3"
           curl -fsSL "https://github.com/COMBINE-lab/piscem/releases/download/${PISCEM_VER}/piscem-x86_64-unknown-linux-gnu.tar.gz" -o piscem.tar.gz
           mkdir -p piscem_unpack
           tar -xzf piscem.tar.gz -C piscem_unpack
-          # پیدا کردن باینری piscem هرجا که هست:
           PISCEM_BIN="$(find piscem_unpack -type f -name 'piscem' | head -n1)"
-          if [[ -z "${PISCEM_BIN}" ]]; then
-            echo "ERROR: piscem binary not found inside tarball."
+          if [[ -z "$PISCEM_BIN" ]]; then
+            echo "ERROR: piscem binary not found in tarball"
             find piscem_unpack -maxdepth 3 -type f | sed 's/^/[HINT] /' || true
             exit 1
           fi
-          sudo install -m 0755 "${PISCEM_BIN}" /usr/local/bin/piscem
+          sudo install -m 0755 "$PISCEM_BIN" /usr/local/bin/piscem
 
-          # Show versions
-          simpleaf --version
-          alevin-fry --version
-          piscem --version
+          # نسخه‌ها (الزاماً بدون اجراهای سنگین)
+          simpleaf --version || true
+          piscem --version || true
+          # بعضی نسخه‌های alevin-fry حتی برای --version هم ALEVIN_FRY_HOME می‌خواهند
+          alevin-fry --version || true
 
-          # recommended ulimit for piscem
+          # توصیه برای piscem
           ulimit -n 2048 || true
 
-      # 7) اجرای نوت‌بوک
+      # 7) اجرای نوت‌بوک (self-contained)
       - name: Execute week6 notebook
         shell: bash
         env:
-          OMP_NUM_THREADS: "4"
-          MKL_NUM_THREADS: "4"
-          NUMEXPR_NUM_THREADS: "4"
           PATH: ${{ env.PATH }}:$HOME/.cargo/bin
         run: |
           set -euo pipefail
-          mkdir -p week6_runtime/out/ci_logs
           jupyter nbconvert \
             --to notebook \
             --execute week6/week6.ipynb \
@@ -111,7 +117,7 @@ jobs:
             --output-dir week6_runtime/out/ci_logs \
             --ExecutePreprocessor.timeout=5400
 
-      # 8) لیست خروجی‌ها
+      # 8) لیست خروجی‌ها (sanity)
       - name: Tree outputs
         if: always()
         shell: bash
@@ -124,7 +130,7 @@ jobs:
           echo "== ci logs =="
           ls -lah week6_runtime/out/ci_logs || true
 
-      # 9) آرتیفکت‌ها
+      # 9) آرتیفکت‌های اصلی
       - name: Upload week6 artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -143,7 +149,7 @@ jobs:
             week6_runtime/out/umap_final.png
             week6_runtime/out/umap_celltypist_only.png
 
-      # 10) لاگ‌ها
+      # 10) لاگ‌ها (برای دیباگ)
       - name: Upload logs (always)
         if: always()
         uses: actions/upload-artifact@v4
