@@ -15,9 +15,8 @@ jobs:
   run:
     runs-on: ubuntu-latest
     env:
-      # برای ابزارهای Rust (بعضی نسخه‌ها به این متغیر گیر می‌دهند)
       ALEVIN_FRY_HOME: ${{ github.workspace }}/.alevin-fry
-      MPLBACKEND: Agg   # برای matplotlib بدون display
+      MPLBACKEND: Agg
       PYTHONUNBUFFERED: "1"
 
     steps:
@@ -25,7 +24,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2) Print bash (اطمینان از وجود bash برای سلول‌های %%bash نوت‌بوک)
+      # 2) Ensure bash exists (for %%bash cells)
       - name: Check bash
         shell: bash
         run: |
@@ -39,40 +38,49 @@ jobs:
         with:
           python-version: "3.10"
 
-      # 4) System deps + Rust toolchain
+      # 4) System deps
       - name: Install system deps
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y build-essential curl unzip pkg-config libssl-dev
+          sudo apt-get install -y build-essential curl unzip pkg-config libssl-dev git
           mkdir -p "$ALEVIN_FRY_HOME"
 
+      # 5) Rust toolchain
       - name: Set up Rust (stable)
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
 
-      # 5) نصب ابزارهای scRNA از سورس (piscem + alevin-fry + simpleaf)
-      - name: Install piscem / alevin-fry / simpleaf
+      # 6) Install piscem from GitHub (not on crates.io)
+      - name: Build & install piscem (from GitHub)
         shell: bash
         run: |
           set -euo pipefail
-          echo "PATH before cargo: $PATH"
-          cargo --version
-          # نصب باینری‌ها
-          cargo install piscem --locked
-          cargo install alevin-fry --locked
-          cargo install simpleaf --locked
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-          echo "PATH after cargo: $PATH"
+          echo "==> Building piscem from source ..."
+          git clone --depth 1 https://github.com/COMBINE-lab/piscem.git
+          cd piscem
+          cargo build --release
+          echo "$PWD/target/release" >> $GITHUB_PATH
+          cd ..
           which piscem
+          piscem --help | head -n 3 || true
+
+      # 7) Install alevin-fry & simpleaf from crates.io
+      - name: Install alevin-fry / simpleaf
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo install alevin-fry --locked
+          cargo install simpleaf   --locked
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           which alevin-fry
           which simpleaf
           alevin-fry --version || true
           simpleaf --version || true
 
-      # 6) Python deps برای نوت‌بوک (scanpy, celltypist, jupyter, ...)
+      # 8) Python deps for the notebook
       - name: Install Python deps
         shell: bash
         run: |
@@ -83,7 +91,7 @@ jobs:
             scanpy==1.10.1 anndata>=0.10 pandas numpy scipy umap-learn matplotlib seaborn requests \
             celltypist==1.6.3
 
-      # 7) دانلود دیتاست Box قبل از اجرای نوت‌بوک
+      # 9) Download Box dataset before executing the notebook
       - name: Download Box dataset
         shell: bash
         run: |
@@ -96,7 +104,6 @@ jobs:
             "https://app.box.com/s/lx2xownlrhz3us8496tyu9c4dgade814?download=1"
             "https://app.box.com/index.php?rm=box_download_shared_file&shared_name=lx2xownlrhz3us8496tyu9c4dgade814"
           )
-
           for u in "${urls[@]}"; do
             echo "Trying: $u"
             if curl -fL --retry 3 -o box_dataset.zip "$u"; then
@@ -111,24 +118,23 @@ jobs:
             mkdir -p box_extracted
             unzip -qq -o box_dataset.zip -d box_extracted || true
           else
-            echo "⚠️ Could not download dataset. The notebook will use its fallback if implemented."
+            echo "⚠️ Could not download dataset. The notebook should have a fallback path."
           fi
 
           echo "==> Contents of data dir:"
           ls -lah
           find . -maxdepth 2 -type d -print
 
-      # 8) اجرای نوت‌بوک week6/week6.ipynb → week6/week6_executed.ipynb
+      # 10) Execute notebook → week6/week6_executed.ipynb
       - name: Execute notebook
         shell: bash
         run: |
           set -euo pipefail
-          # زمان اجرا را نامحدود می‌گذاریم تا ایندکس/کوآنت کامل شود
           jupyter nbconvert --to notebook --execute week6/week6.ipynb \
             --ExecutePreprocessor.timeout=0 \
             --output week6_executed --output-dir week6
 
-      # 9) لیست خروجی‌ها برای لاگ
+      # 11) Summarize outputs in logs
       - name: Tree outputs (summary)
         if: always()
         shell: bash
@@ -141,7 +147,7 @@ jobs:
           echo "== ci logs =="
           ls -lah week6 || true
 
-      # 10) Artifactهای اصلی (نوت‌بوک اجراشده + نتایج تحلیلی + تصاویر)
+      # 12) Upload artifacts (notebook + key outputs)
       - name: Upload week6 artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -161,7 +167,7 @@ jobs:
             week6_runtime/out/af_quant/status_flags.json
             week6_runtime/out/af_quant/resolved_paths.json
 
-      # 11) (اختیاری) فولدر کامل برای دیباگ
+      # 13) (optional) upload full folder for debugging
       - name: Upload full week6 folder (debug)
         if: always()
         uses: actions/upload-artifact@v4
