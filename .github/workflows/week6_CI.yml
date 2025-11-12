@@ -14,111 +14,122 @@ on:
 jobs:
   run:
     runs-on: ubuntu-latest
-
-    # محیط‌های مشترک همهٔ گام‌ها
     env:
-      # مسیر خانه‌ی alevin-fry (برای پرهیز از خطای ALEVIN_FRY_HOME)
-      ALEVIN_FRY_HOME: ${{ github.workspace }}/week6_runtime/.af_home
-      OMP_NUM_THREADS: "4"
-      MKL_NUM_THREADS: "4"
-      NUMEXPR_NUM_THREADS: "4"
+      # برای ابزارهای Rust (بعضی نسخه‌ها به این متغیر گیر می‌دهند)
+      ALEVIN_FRY_HOME: ${{ github.workspace }}/.alevin-fry
+      MPLBACKEND: Agg   # برای matplotlib بدون display
+      PYTHONUNBUFFERED: "1"
 
     steps:
       # 1) Checkout
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2) Python
+      # 2) Print bash (اطمینان از وجود bash برای سلول‌های %%bash نوت‌بوک)
+      - name: Check bash
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v bash
+          bash --version
+
+      # 3) Python 3.10
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
-      # 3) System deps
+      # 4) System deps + Rust toolchain
       - name: Install system deps
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y \
-            build-essential curl unzip pkg-config \
-            libssl-dev zlib1g-dev clang cmake \
-            libxml2-dev libxslt1-dev libhdf5-dev
-          # دایرکتوری‌های خروجی و خانهٔ AF
-          mkdir -p week6_runtime/out/ci_logs
+          sudo apt-get install -y build-essential curl unzip pkg-config libssl-dev
           mkdir -p "$ALEVIN_FRY_HOME"
 
-      # 4) Rust (برای simpleaf و alevin-fry)
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      # 5) Cache Cargo
-      - name: Cache cargo registry and git
-        uses: actions/cache@v4
+      - name: Set up Rust (stable)
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-cargo-${{ hashFiles('.github/workflows/week_CI.yml') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+          toolchain: stable
 
-      # 6) نصب ابزارها و کتابخانه‌ها
-      - name: Install CLI tools and Python libs
+      # 5) نصب ابزارهای scRNA از سورس (piscem + alevin-fry + simpleaf)
+      - name: Install piscem / alevin-fry / simpleaf
         shell: bash
         run: |
           set -euo pipefail
-          export PATH="$HOME/.cargo/bin:$PATH"
-
-          # Python basics + libs موردنیاز نوت‌بوک
-          python -m pip install --upgrade pip
-          pip install jupyter nbconvert
-          pip install numpy pandas matplotlib scipy anndata
-          pip install "scanpy>=1.9" leidenalg
-          pip install "celltypist>=1.6"
-
-          # Rust-based CLIs از سورس
-          cargo install simpleaf --locked
+          echo "PATH before cargo: $PATH"
+          cargo --version
+          # نصب باینری‌ها
+          cargo install piscem --locked
           cargo install alevin-fry --locked
-
-          # نصب piscem از ریلیز آماده (Linux x86_64)
-          PISCEM_VER="v0.10.3"
-          curl -fsSL "https://github.com/COMBINE-lab/piscem/releases/download/${PISCEM_VER}/piscem-x86_64-unknown-linux-gnu.tar.gz" -o piscem.tar.gz
-          mkdir -p piscem_unpack
-          tar -xzf piscem.tar.gz -C piscem_unpack
-          PISCEM_BIN="$(find piscem_unpack -type f -name 'piscem' | head -n1)"
-          if [[ -z "$PISCEM_BIN" ]]; then
-            echo "ERROR: piscem binary not found in tarball"
-            find piscem_unpack -maxdepth 3 -type f | sed 's/^/[HINT] /' || true
-            exit 1
-          fi
-          sudo install -m 0755 "$PISCEM_BIN" /usr/local/bin/piscem
-
-          # نسخه‌ها (الزاماً بدون اجراهای سنگین)
-          simpleaf --version || true
-          piscem --version || true
-          # بعضی نسخه‌های alevin-fry حتی برای --version هم ALEVIN_FRY_HOME می‌خواهند
+          cargo install simpleaf --locked
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          echo "PATH after cargo: $PATH"
+          which piscem
+          which alevin-fry
+          which simpleaf
           alevin-fry --version || true
+          simpleaf --version || true
 
-          # توصیه برای piscem
-          ulimit -n 2048 || true
-
-      # 7) اجرای نوت‌بوک (self-contained)
-      - name: Execute week6 notebook
+      # 6) Python deps برای نوت‌بوک (scanpy, celltypist, jupyter, ...)
+      - name: Install Python deps
         shell: bash
-        env:
-          PATH: ${{ env.PATH }}:$HOME/.cargo/bin
         run: |
           set -euo pipefail
-          jupyter nbconvert \
-            --to notebook \
-            --execute week6/week6.ipynb \
-            --output week6_executed.ipynb \
-            --output-dir week6_runtime/out/ci_logs \
-            --ExecutePreprocessor.timeout=5400
+          python -m pip install --upgrade pip
+          pip install \
+            jupyter nbconvert \
+            scanpy==1.10.1 anndata>=0.10 pandas numpy scipy umap-learn matplotlib seaborn requests \
+            celltypist==1.6.3
 
-      # 8) لیست خروجی‌ها (sanity)
-      - name: Tree outputs
+      # 7) دانلود دیتاست Box قبل از اجرای نوت‌بوک
+      - name: Download Box dataset
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p week6_runtime/data
+          cd week6_runtime/data
+
+          echo "==> Trying to fetch Box folder as zip ..."
+          urls=(
+            "https://app.box.com/s/lx2xownlrhz3us8496tyu9c4dgade814?download=1"
+            "https://app.box.com/index.php?rm=box_download_shared_file&shared_name=lx2xownlrhz3us8496tyu9c4dgade814"
+          )
+
+          for u in "${urls[@]}"; do
+            echo "Trying: $u"
+            if curl -fL --retry 3 -o box_dataset.zip "$u"; then
+              echo "Downloaded box_dataset.zip"
+              break
+            fi
+            rm -f box_dataset.zip || true
+          done
+
+          if [[ -f box_dataset.zip ]]; then
+            echo "==> Extracting dataset ..."
+            mkdir -p box_extracted
+            unzip -qq -o box_dataset.zip -d box_extracted || true
+          else
+            echo "⚠️ Could not download dataset. The notebook will use its fallback if implemented."
+          fi
+
+          echo "==> Contents of data dir:"
+          ls -lah
+          find . -maxdepth 2 -type d -print
+
+      # 8) اجرای نوت‌بوک week6/week6.ipynb → week6/week6_executed.ipynb
+      - name: Execute notebook
+        shell: bash
+        run: |
+          set -euo pipefail
+          # زمان اجرا را نامحدود می‌گذاریم تا ایندکس/کوآنت کامل شود
+          jupyter nbconvert --to notebook --execute week6/week6.ipynb \
+            --ExecutePreprocessor.timeout=0 \
+            --output week6_executed --output-dir week6
+
+      # 9) لیست خروجی‌ها برای لاگ
+      - name: Tree outputs (summary)
         if: always()
         shell: bash
         run: |
@@ -128,9 +139,9 @@ jobs:
           echo "== plots =="
           ls -lah week6_runtime/out/*.png || true
           echo "== ci logs =="
-          ls -lah week6_runtime/out/ci_logs || true
+          ls -lah week6 || true
 
-      # 9) آرتیفکت‌های اصلی
+      # 10) Artifactهای اصلی (نوت‌بوک اجراشده + نتایج تحلیلی + تصاویر)
       - name: Upload week6 artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -138,25 +149,25 @@ jobs:
           name: week6-artifacts
           if-no-files-found: warn
           path: |
-            week6_runtime/out/ci_logs/week6_executed.ipynb
+            week6/week6_executed.ipynb
             week6_runtime/out/af_quant/alevin.raw.h5ad
             week6_runtime/out/af_quant/adata_processed.h5ad
             week6_runtime/out/af_quant/celltypist_summary.tsv
-            week6_runtime/out/af_quant/simpleaf_quant_log.json
-            week6_runtime/out/af_quant/resolved_paths.json
-            week6_runtime/out/af_quant/status_flags.json
             week6_runtime/out/umap_clusters.png
-            week6_runtime/out/umap_final.png
             week6_runtime/out/umap_celltypist_only.png
+            week6_runtime/out/umap_final.png
+            week6_runtime/out/af_quant/refbuild/index/**
+            week6_runtime/out/af_quant/simpleaf_quant_log.json
+            week6_runtime/out/af_quant/status_flags.json
+            week6_runtime/out/af_quant/resolved_paths.json
 
-      # 10) لاگ‌ها (برای دیباگ)
-      - name: Upload logs (always)
+      # 11) (اختیاری) فولدر کامل برای دیباگ
+      - name: Upload full week6 folder (debug)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: week6-logs
+          name: week6-full
           if-no-files-found: warn
           path: |
-            week6_runtime/out/ci_logs/**
-            week6_runtime/out/af_quant/**/*.log
-            week6_runtime/out/af_quant/**/logs/**
+            week6/**
+            week6_runtime/**
