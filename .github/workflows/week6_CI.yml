@@ -4,56 +4,85 @@ on:
   push:
     paths:
       - "week6/**"
-      - ".github/workflows/week6_CI.yml"
+      - ".github/workflows/week_CI.yml"
   pull_request:
     paths:
       - "week6/**"
-      - ".github/workflows/week6_CI.yml"
+      - ".github/workflows/week_CI.yml"
   workflow_dispatch:
 
 jobs:
   run:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash -l {0}
 
     steps:
+      # 1) Checkout
       - name: Checkout
         uses: actions/checkout@v4
 
-      # پایدار و بدون مشکل post-cleanup
-      - name: Setup Miniconda (with mamba)
-        uses: conda-incubator/setup-miniconda@v3
+      # 2) Python 3.10 + pip
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          auto-update-conda: true
           python-version: "3.10"
-          activate-environment: scweek6
-          environment-file: week6/environment.yml
-          use-mamba: true
-          miniforge-version: latest
-          condarc-file: |
-            channels:
-              - conda-forge
-              - bioconda
-            channel_priority: strict
-          # کش محیط و بسته‌ها
-          cache-downloads: true
+          cache: "pip"
 
-      - name: Show versions
+      # 3) System deps (برای Rust/cargo و ابزارها)
+      - name: Install system deps
         run: |
-          python -V
-          jupyter --version || true
-          python -c "import scanpy as sc; print('scanpy', sc.__version__)" || true
-          python -c "import celltypist; print('celltypist', celltypist.__version__)" || true
-          simpleaf --version || true
-          alevin-fry --version || true
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential curl unzip pkg-config \
+            libssl-dev zlib1g-dev clang cmake
 
+      # 4) Rust toolchain (برای ساخت alevin-fry / piscem / simpleaf)
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: ""   # نیاز نیست
+
+      # 5) کش Cargo (برای سرعت بیلد ابزارهای Rust)
+      - name: Cache cargo registry and git
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/week6/Cargo.lock', '**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      # 6) نصب ابزارهای Rust (نسخه‌های پایدار)
+      - name: Install alevin-fry, piscem, simpleaf
+        run: |
+          set -euo pipefail
+          export CARGO_HOME="$HOME/.cargo"
+          export PATH="$HOME/.cargo/bin:$PATH"
+          # اگر بار اول طولانی شد طبیعیه؛ دفعه‌های بعدی با کش سریع می‌شه
+          cargo install alevin-fry --locked || true
+          cargo install piscem      --locked || true
+          cargo install simpleaf    --locked || true
+          alevin-fry --version
+          piscem --version
+          simpleaf --version
+
+      # 7) نصب پکیج‌های Python با pip
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install jupyter nbconvert
+          pip install numpy pandas matplotlib anndata
+          pip install "scanpy>=1.9" leidenalg
+          pip install "celltypist>=1.6"
+
+      # 8) اجرای نوت‌بوک Week6 (self-contained)
       - name: Execute week6 notebook
         env:
           OMP_NUM_THREADS: "4"
           MKL_NUM_THREADS: "4"
           NUMEXPR_NUM_THREADS: "4"
+          PATH: ${{ env.PATH }}:$HOME/.cargo/bin
         run: |
           set -euo pipefail
           mkdir -p week6_runtime/out/ci_logs
@@ -64,15 +93,19 @@ jobs:
             --output-dir week6_runtime/out/ci_logs \
             --ExecutePreprocessor.timeout=5400
 
+      # 9) نمایش خلاصه خروجی‌ها برای sanity check
       - name: Tree outputs
         if: always()
         run: |
           set -euo pipefail
-          echo "== Key outputs =="
+          echo "== week6 af_quant =="
           ls -lah week6_runtime/out/af_quant || true
+          echo "== plots =="
           ls -lah week6_runtime/out/*.png || true
+          echo "== ci logs =="
           ls -lah week6_runtime/out/ci_logs || true
 
+      # 10) آرتیفکت‌های اصلی برای نمره‌دهی
       - name: Upload week6 artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -91,6 +124,7 @@ jobs:
             week6_runtime/out/umap_final.png
             week6_runtime/out/umap_celltypist_only.png
 
+      # 11) لاگ‌ها (برای دیباگ)
       - name: Upload logs (always)
         if: always()
         uses: actions/upload-artifact@v4
