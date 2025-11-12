@@ -20,13 +20,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2) Python 3.10 (بدون pip cache تا وابسته به requirements.txt نباشیم)
+      # 2) Python 3.10
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
-      # 3) System deps برای build و بعضی wheelها
+      # 3) System deps
       - name: Install system deps
         shell: bash
         run: |
@@ -41,7 +41,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      # 5) Cache Cargo (سریع‌تر شدن نصب‌های بعدی)
+      # 5) Cache Cargo
       - name: Cache cargo registry and git
         uses: actions/cache@v4
         with:
@@ -52,8 +52,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      # 6) نصب ابزارها: simpleaf + alevin-fry (cargo) و piscem (باینری آماده)
-      - name: Install CLI tools (simpleaf, alevin-fry, piscem)
+      # 6) نصب ابزارها و پکیج‌ها
+      - name: Install CLI tools and Python libs
         shell: bash
         run: |
           set -euo pipefail
@@ -62,21 +62,28 @@ jobs:
           # Python basics
           python -m pip install --upgrade pip
           pip install jupyter nbconvert
-
-          # Python libs notebook
           pip install numpy pandas matplotlib scipy anndata
           pip install "scanpy>=1.9" leidenalg
           pip install "celltypist>=1.6"
 
-          # Rust-based CLIs
+          # Rust-based CLIs (بیلد از سورس)
           cargo install simpleaf --locked
           cargo install alevin-fry --locked
 
-          # piscem از ریلیز آماده (Linux x86_64)
-          curl -fsSL https://github.com/COMBINE-lab/piscem/releases/download/v0.10.3/piscem-x86_64-unknown-linux-gnu.tar.gz -o piscem.tar.gz
-          tar -xzf piscem.tar.gz
-          sudo mv piscem /usr/local/bin/
-          sudo chmod +x /usr/local/bin/piscem
+          # === piscem از ریلیز آماده و نصب مطمئن ===
+          # نسخه رو اگر خواستی pin کن؛ اینجا یک نسخه پایدار نمونه گذاشتم:
+          PISCEM_VER="v0.10.3"
+          curl -fsSL "https://github.com/COMBINE-lab/piscem/releases/download/${PISCEM_VER}/piscem-x86_64-unknown-linux-gnu.tar.gz" -o piscem.tar.gz
+          mkdir -p piscem_unpack
+          tar -xzf piscem.tar.gz -C piscem_unpack
+          # پیدا کردن باینری piscem هرجا که هست:
+          PISCEM_BIN="$(find piscem_unpack -type f -name 'piscem' | head -n1)"
+          if [[ -z "${PISCEM_BIN}" ]]; then
+            echo "ERROR: piscem binary not found inside tarball."
+            find piscem_unpack -maxdepth 3 -type f | sed 's/^/[HINT] /' || true
+            exit 1
+          fi
+          sudo install -m 0755 "${PISCEM_BIN}" /usr/local/bin/piscem
 
           # Show versions
           simpleaf --version
@@ -86,7 +93,7 @@ jobs:
           # recommended ulimit for piscem
           ulimit -n 2048 || true
 
-      # 7) اجرای نوت‌بوک (self-contained)
+      # 7) اجرای نوت‌بوک
       - name: Execute week6 notebook
         shell: bash
         env:
@@ -104,7 +111,7 @@ jobs:
             --output-dir week6_runtime/out/ci_logs \
             --ExecutePreprocessor.timeout=5400
 
-      # 8) نمایش خلاصه خروجی‌ها برای sanity
+      # 8) لیست خروجی‌ها
       - name: Tree outputs
         if: always()
         shell: bash
@@ -117,7 +124,7 @@ jobs:
           echo "== ci logs =="
           ls -lah week6_runtime/out/ci_logs || true
 
-      # 9) آرتیفکت‌های اصلی برای نمره‌دهی
+      # 9) آرتیفکت‌ها
       - name: Upload week6 artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -136,7 +143,7 @@ jobs:
             week6_runtime/out/umap_final.png
             week6_runtime/out/umap_celltypist_only.png
 
-      # 10) لاگ‌ها (برای دیباگ)
+      # 10) لاگ‌ها
       - name: Upload logs (always)
         if: always()
         uses: actions/upload-artifact@v4
