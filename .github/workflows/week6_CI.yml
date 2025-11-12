@@ -19,59 +19,60 @@ jobs:
         shell: bash -l {0}
 
     steps:
-      # 1) Checkout
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2) Micromamba (stable; no flaky post-job cleanup)
-      - name: Setup micromamba
-        uses: mamba-org/setup-micromamba@v2
+      # پایدار و بدون مشکل post-cleanup
+      - name: Setup Miniconda (with mamba)
+        uses: conda-incubator/setup-miniconda@v3
         with:
+          auto-update-conda: true
+          python-version: "3.10"
+          activate-environment: scweek6
           environment-file: week6/environment.yml
-          environment-name: scweek6
-          cache-environment: true
+          use-mamba: true
+          miniforge-version: latest
+          condarc-file: |
+            channels:
+              - conda-forge
+              - bioconda
+            channel_priority: strict
+          # کش محیط و بسته‌ها
           cache-downloads: true
-          init-shell: bash
 
-      # 3) Print tool versions (debug-friendly)
       - name: Show versions
         run: |
-          micromamba run -n scweek6 python -V || true
-          micromamba run -n scweek6 jupyter --version || true
-          micromamba run -n scweek6 python -c "import scanpy as sc, sys; print('scanpy', sc.__version__)" || true
-          micromamba run -n scweek6 python -c "import celltypist, sys; print('celltypist', celltypist.__version__)" || true
-          micromamba run -n scweek6 simpleaf --version || true
-          micromamba run -n scweek6 alevin-fry --version || true
+          python -V
+          jupyter --version || true
+          python -c "import scanpy as sc; print('scanpy', sc.__version__)" || true
+          python -c "import celltypist; print('celltypist', celltypist.__version__)" || true
+          simpleaf --version || true
+          alevin-fry --version || true
 
-      # 4) Execute the notebook end-to-end (self-contained)
       - name: Execute week6 notebook
         env:
-          OMP_NUM_THREADS: "4"     # می‌تونی 8 بذاری اگر زمان کافی داری
+          OMP_NUM_THREADS: "4"
           MKL_NUM_THREADS: "4"
           NUMEXPR_NUM_THREADS: "4"
         run: |
           set -euo pipefail
           mkdir -p week6_runtime/out/ci_logs
-          micromamba run -n scweek6 jupyter nbconvert \
+          jupyter nbconvert \
             --to notebook \
             --execute week6/week6.ipynb \
             --output week6_executed.ipynb \
             --output-dir week6_runtime/out/ci_logs \
             --ExecutePreprocessor.timeout=5400
 
-      # 5) Summarize tree & key outputs (for quick sanity)
       - name: Tree outputs
         if: always()
         run: |
           set -euo pipefail
-          echo "== TREE under week6 =="
-          find week6 -maxdepth 3 -type d -print | sort
           echo "== Key outputs =="
           ls -lah week6_runtime/out/af_quant || true
           ls -lah week6_runtime/out/*.png || true
           ls -lah week6_runtime/out/ci_logs || true
 
-      # 6) Upload primary artifacts (results to grade)
       - name: Upload week6 artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -79,23 +80,17 @@ jobs:
           name: week6-artifacts
           if-no-files-found: warn
           path: |
-            # Executed notebook (report)
             week6_runtime/out/ci_logs/week6_executed.ipynb
-            # Quantification (AnnData)
             week6_runtime/out/af_quant/alevin.raw.h5ad
             week6_runtime/out/af_quant/adata_processed.h5ad
-            # Plots
-            week6_runtime/out/umap_clusters.png
-            week6_runtime/out/umap_final.png
-            week6_runtime/out/umap_celltypist_only.png
-            # Annotation summary
             week6_runtime/out/af_quant/celltypist_summary.tsv
-            # Logs
             week6_runtime/out/af_quant/simpleaf_quant_log.json
             week6_runtime/out/af_quant/resolved_paths.json
             week6_runtime/out/af_quant/status_flags.json
+            week6_runtime/out/umap_clusters.png
+            week6_runtime/out/umap_final.png
+            week6_runtime/out/umap_celltypist_only.png
 
-      # 7) Upload full log dir (debug)
       - name: Upload logs (always)
         if: always()
         uses: actions/upload-artifact@v4
