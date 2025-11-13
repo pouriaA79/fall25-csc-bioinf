@@ -120,12 +120,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo "== af_quant =="
-          ls -lah week6_runtime/out/af_quant || true
-          echo "== plots =="
-          ls -lah week6_runtime/out/*.png || true
           echo "== notebook =="
           ls -lah week6/week6_executed.ipynb || true
+    
+          echo "== af_quant (if exists) =="
+          ls -lah week6_runtime/out/af_quant || true
+    
+          echo "== plots (if exists) =="
+          ls -lah week6_runtime/out/*.png || true
+
 
       # === Upload main artifacts ===
       - name: Upload artifacts
