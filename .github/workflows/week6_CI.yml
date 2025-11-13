@@ -95,7 +95,6 @@ jobs:
             scanpy==1.10.1 anndata>=0.10 pandas numpy scipy umap-learn matplotlib seaborn requests \
             celltypist==1.6.3
 
-      # (اختیاری) دایرکتوری‌های ران‌تایم
       - name: Create runtime dirs
         shell: bash
         run: |
@@ -142,12 +141,10 @@ jobs:
           path: |
             week6/week6_executed.ipynb
       
-            # خروجی‌های alevin-fry / Scanpy
             week6/week6_runtime/out/af_quant/alevin.raw.h5ad
             week6/week6_runtime/out/af_quant/adata_processed.h5ad
             week6/week6_runtime/out/af_quant/celltypist_summary.tsv
       
-            # شکل‌ها (همون‌جایی که نوت‌بوک ذخیره کرده)
             week6/figures/umap_clusters.png
             week6/figures/umap_celltypist_only.png
             week6/figures/umap_final.png
