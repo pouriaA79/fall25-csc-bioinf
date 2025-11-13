@@ -122,12 +122,13 @@ jobs:
           set -euo pipefail
           echo "== notebook =="
           ls -lah week6/week6_executed.ipynb || true
-    
+      
           echo "== af_quant (if exists) =="
           ls -lah week6/week6_runtime/out/af_quant || true
-    
+      
           echo "== plots (if exists) =="
-          ls -lah week6/week6_runtime/out/*.png || true
+          ls -lah week6/figures/*.png || true
+
 
 
 
@@ -140,10 +141,17 @@ jobs:
           if-no-files-found: warn
           path: |
             week6/week6_executed.ipynb
+      
+            # خروجی‌های alevin-fry / Scanpy
             week6/week6_runtime/out/af_quant/alevin.raw.h5ad
             week6/week6_runtime/out/af_quant/adata_processed.h5ad
             week6/week6_runtime/out/af_quant/celltypist_summary.tsv
-            week6/week6_runtime/out/umap_clusters.png
+      
+            # شکل‌ها (همون‌جایی که نوت‌بوک ذخیره کرده)
+            week6/figures/umap_clusters.png
+            week6/figures/umap_celltypist_only.png
+            week6/figures/umap_final.png
+
 
 
 
