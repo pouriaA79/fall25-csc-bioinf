@@ -162,12 +162,12 @@ jobs:
             week6_runtime/out/af_quant/adata_processed.h5ad
             week6_runtime/out/af_quant/celltypist_summary.tsv
             week6_runtime/out/umap_clusters.png
-            week6_runtime/out/umap_celltypist_only.png
-            week6_runtime/out/umap_final.png
-            week6_runtime/out/af_quant/refbuild/index/**
-            week6_runtime/out/af_quant/simpleaf_quant_log.json
-            week6_runtime/out/af_quant/status_flags.json
-            week6_runtime/out/af_quant/resolved_paths.json
+            # week6_runtime/out/umap_celltypist_only.png
+            # week6_runtime/out/umap_final.png
+            # week6_runtime/out/af_quant/refbuild/index/**
+            # week6_runtime/out/af_quant/simpleaf_quant_log.json
+            # week6_runtime/out/af_quant/status_flags.json
+            # week6_runtime/out/af_quant/resolved_paths.json
 
       # (اختیاری) کل فولدر برای دیباگ
       - name: Upload full week6 (debug)
